@@ -8,9 +8,10 @@ use std::process;
 
 mod cli;
 mod color;
-mod cmds;
+mod launchpad;
 
-use cmds::*;
+// use cmds::*;
+use launchpad::*;
 
 fn main() {
     // initialize the PortMidi context.
@@ -79,32 +80,34 @@ fn get_first_launchpad(midi: &pm::PortMidi) -> LaunchPorts {
     }
 }
 
+use launchpad::*;
+
 fn run() {
     let context = pm::PortMidi::new().unwrap();
     let timeout = Duration::from_millis(1);
 
-    let ports = get_first_launchpad(&context);
+    let mut lpad = LaunchpadMk2::guess(&context);
 
-    // get the device info for the given id
-    let info = context.device(ports.input).unwrap();
-    println!("Listening on: {}) {}", info.id(), info.name());
-
-    // get the device's input port
-    let in_port = context.input_port(info, 1024).unwrap();
-
-    let info = context.device(ports.output).unwrap();
-    let mut out_port = context.output_port(info, 1024).unwrap();
+    lpad.light_all(0);
 
     for i in 0..9 {
-        println!("SetupW: {:?}",
-        out_port.write_sysex(0, &[240, 0, 32, 41, 2, 24, 12, i, 72, 247]));
+        lpad.light_column(&ColorColumn {column: i, color: 5});
         thread::sleep(Duration::from_millis(25));
     }
 
+    thread::sleep(Duration::from_millis(500));
+
     for i in 0..9 {
-        println!("SetupW: {:?}",
-        out_port.write_sysex(0, &[240, 0, 32, 41, 2, 24, 12, i, 0, 247]));
+        lpad.light_row(&ColorRow {row: i, color: 0});
         thread::sleep(Duration::from_millis(25));
+    }
+
+    thread::sleep(Duration::from_millis(500));
+
+
+    for color in vec!(18, 54, 13, 104, 0) {
+        lpad.light_all(color);
+        thread::sleep(Duration::from_millis(1000));
     }
 
     println!("Ready!");
@@ -116,7 +119,7 @@ fn run() {
             let x = 10*row + column;
 
 
-            light_led(&mut out_port, &ColorLed{ position: x, color: 88});
+            lpad.light_led(&ColorLed{ position: x, color: 88});
 
 
             thread::sleep(Duration::from_millis(1));
@@ -126,7 +129,7 @@ fn run() {
 
     thread::sleep(Duration::from_millis(500));
 
-    light_leds(&mut out_port, &vec!(
+    lpad.light_leds(&vec!(
         &ColorLed{ position: 11, color: 41},
         &ColorLed{ position: 22, color: 41},
         &ColorLed{ position: 33, color: 41},
@@ -139,7 +142,7 @@ fn run() {
 
     thread::sleep(Duration::from_millis(500));
 
-    light_leds(&mut out_port, &vec!(
+    lpad.light_leds(&vec!(
         &ColorLed{ position: 81, color: 5},
         &ColorLed{ position: 72, color: 5},
         &ColorLed{ position: 63, color: 5},
@@ -152,7 +155,7 @@ fn run() {
 
     thread::sleep(Duration::from_millis(500));
 
-    light_leds(&mut out_port, &vec!(
+    lpad.light_leds(&vec!(
         &ColorLed{ position: 19, color: 3},
         &ColorLed{ position: 29, color: 3},
         &ColorLed{ position: 39, color: 3},
@@ -165,7 +168,7 @@ fn run() {
 
     thread::sleep(Duration::from_millis(500));
 
-    light_leds(&mut out_port, &vec!(
+    lpad.light_leds(&vec!(
         &ColorLed{ position: 104, color: 4},
         &ColorLed{ position: 105, color: 4},
         &ColorLed{ position: 106, color: 4},
@@ -178,42 +181,31 @@ fn run() {
 
     // playground
 
+    thread::sleep(Duration::from_millis(500));
+    lpad.light_all(0);
+    lpad.scroll_text(27, false, "Your Turn!");
 
+    let mut foo = 0;
 
-    // for i in 0..9 {
-    //     println!("SetupW: {:?}",
-    //     out_port.write_sysex(0, &[240, 0, 32, 41, 2, 24, 12, i, 0, 247]));
-    //     thread::sleep(Duration::from_millis(25));
-    // }
+    loop {
+        if let Some(events) = lpad.poll() {
+            // println!("{:?}", event);
+            for press in events {
+                if press.message.data2 == 127 {
+                    foo += 1;
+                    foo %= 128;
+                    // println!("{} {:?}", foo, out_port.write_message([press.message.status, press.message.data1, foo]));
+                    lpad.pulse_single(&ColorLed{ color: foo, position: press.message.data1 })
+                }
+            }
+        }
+
+        // there is no blocking receive method in PortMidi, therefore
+        // we have to sleep some time to prevent a busy-wait loop
+        thread::sleep(timeout);
+    }
 
     // Wait for commands to complete
     thread::sleep(Duration::from_millis(1000));
 
 }
-
-
-
-// LISTEN AND COLOR
-
-    // while let Ok(_) = in_port.poll() {
-    //     if let Ok(Some(event)) = in_port.read_n(1024) {
-    //         // println!("{:?}", event);
-    //         for press in event {
-    //             if press.message.data2 == 127 {
-    //                 foo += 1;
-    //                 foo %= 128;
-    //                 println!("{} {:?}", foo, out_port.write_message([press.message.status, press.message.data1, foo]));
-    //             }
-    //         }
-    //     }
-
-    //     // foo += 5;
-    //     // foo %= 60;
-
-    //     // let val = out_port.write_sysex(0, &[0xf0, 240, 0, 32, 41, 2, 16, 11, 11, foo, 0, 0, 0xf7]);
-    //     // println!("ColorW: {} {:?}", foo, val);
-
-    //     // there is no blocking receive method in PortMidi, therefore
-    //     // we have to sleep some time to prevent a busy-wait loop
-    //     thread::sleep(timeout);
-    // }
