@@ -5,7 +5,7 @@ pub fn build_args() -> App<'static, 'static> {
         .version("0.1")
         .author("James Munns <james.munns@gmail.com>")
         .arg(Arg::with_name("list")
-             .short("l")
-             .long("list")
-             .help("List available devices"))
+            .short("l")
+            .long("list")
+            .help("List available devices"))
 }
