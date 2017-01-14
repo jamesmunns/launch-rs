@@ -6,28 +6,27 @@ pub struct Color {
 }
 
 
-impl Color {
-    pub fn nearest_pallette(red: u8, green: u8, blue: u8) -> u8 {
-        let mut ifurthest = 0usize;
-        let mut furthest = 50000;
-        for (i, color) in COLOR_PALLETTE.iter().enumerate() {
-            // Exact match
-            if red == color.red && green == color.green && blue == color.blue {
-                return i as u8;
-            }
-
-            let distance = ((red as i16 - color.red as i16).pow(2) +
-                           (green as i16 - color.green as i16).pow(2) +
-                           (blue as i16 - color.blue as i16).pow(2)) as u32;
-            if distance < furthest {
-                furthest = distance;
-                ifurthest = i;
-            }
+pub fn nearest_pallette(red: u8, green: u8, blue: u8) -> u8 {
+    let mut ifurthest = 0usize;
+    let mut furthest = 3 * (255 as i32).pow(2) + 1;
+    for (i, color) in COLOR_PALLETTE.iter().enumerate() {
+        // Exact match
+        if red == color.red && green == color.green && blue == color.blue {
+            return i as u8;
         }
 
-        return ifurthest as u8;
+        let distance = (red as i32 - color.red as i32).pow(2) +
+                       (green as i32 - color.green as i32).pow(2) +
+                       (blue as i32 - color.blue as i32).pow(2);
+        if distance < furthest {
+            furthest = distance;
+            ifurthest = i;
+        }
     }
+
+    return ifurthest as u8;
 }
+
 
 // Table information from http://launchpaddr.com/mk2palette/
 const COLOR_PALLETTE: [Color; 128] = [
