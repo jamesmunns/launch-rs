@@ -66,7 +66,7 @@ impl LaunchpadMk2 {
         let mut output: Option<i32> = None;
 
         for d in devs {
-            if d.name() != "Launchpad MK2" {
+            if !d.name().contains("Launchpad MK2") {
                 continue;
             }
 
