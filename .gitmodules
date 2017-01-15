@@ -1,3 +1,0 @@
-[submodule "portmidi-rs"]
-	path = portmidi-rs
-	url = https://github.com/jamesmunns/portmidi-rs
