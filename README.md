@@ -51,11 +51,13 @@ Then, get started!
 ```rust
 extern crate launchpad;
 
+use std::time::Duration;
 use std::thread;
 use launchpad::*;
 
 fn main() {
     let mut lpad = LaunchpadMk2::guess();
+    let timeout = Duration::from_millis(1);
 
     // Output
     println!("Clear screen...");
@@ -70,11 +72,15 @@ fn main() {
     thread::sleep(Duration::from_millis(500));
     lpad.light_all(0);
 
+    let mut foo = 0;
+
     // Input and Output
     loop {
         if let Some(events) = lpad.poll() {
             for press in events {
                 if press.message.data2 == 127 {
+                    foo += 1;
+                    foo %= 128;
                     lpad.pulse_single(&ColorLed {
                         color: foo,
                         position: press.message.data1,
