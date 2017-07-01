@@ -104,50 +104,50 @@ fn run() {
     thread::sleep(Duration::from_millis(500));
 
     println!("Bottom Right to Top Left");
-    lpad.light_leds(&vec![&ColorLed {position: 11, color: 41,},
-                          &ColorLed {position: 22, color: 41,},
-                          &ColorLed {position: 33, color: 41,},
-                          &ColorLed {position: 44, color: 41,},
-                          &ColorLed {position: 55, color: 41,},
-                          &ColorLed {position: 66, color: 41,},
-                          &ColorLed {position: 77, color: 41,},
-                          &ColorLed {position: 88, color: 41,},]);
+    lpad.light_leds(&vec![ColorLed {position: 11, color: 41,},
+                          ColorLed {position: 22, color: 41,},
+                          ColorLed {position: 33, color: 41,},
+                          ColorLed {position: 44, color: 41,},
+                          ColorLed {position: 55, color: 41,},
+                          ColorLed {position: 66, color: 41,},
+                          ColorLed {position: 77, color: 41,},
+                          ColorLed {position: 88, color: 41,},]);
 
     thread::sleep(Duration::from_millis(500));
 
     println!("Bottom Left to Top Right");
-    lpad.light_leds(&vec![&ColorLed {position: 81, color: 5,},
-                          &ColorLed {position: 72, color: 5,},
-                          &ColorLed {position: 63, color: 5,},
-                          &ColorLed {position: 54, color: 5,},
-                          &ColorLed {position: 45, color: 5,},
-                          &ColorLed {position: 36, color: 5,},
-                          &ColorLed {position: 27, color: 5,},
-                          &ColorLed {position: 18, color: 5,},]);
+    lpad.light_leds(&vec![ColorLed {position: 81, color: 5,},
+                          ColorLed {position: 72, color: 5,},
+                          ColorLed {position: 63, color: 5,},
+                          ColorLed {position: 54, color: 5,},
+                          ColorLed {position: 45, color: 5,},
+                          ColorLed {position: 36, color: 5,},
+                          ColorLed {position: 27, color: 5,},
+                          ColorLed {position: 18, color: 5,},]);
 
     thread::sleep(Duration::from_millis(500));
 
     println!("Right controls on");
-    lpad.light_leds(&vec![&ColorLed {position: 19, color: 3,},
-                          &ColorLed {position: 29, color: 3,},
-                          &ColorLed {position: 39, color: 3,},
-                          &ColorLed {position: 49, color: 3,},
-                          &ColorLed {position: 59, color: 3,},
-                          &ColorLed {position: 69, color: 3,},
-                          &ColorLed {position: 79, color: 3,},
-                          &ColorLed {position: 89, color: 3,},]);
+    lpad.light_leds(&vec![ColorLed {position: 19, color: 3,},
+                          ColorLed {position: 29, color: 3,},
+                          ColorLed {position: 39, color: 3,},
+                          ColorLed {position: 49, color: 3,},
+                          ColorLed {position: 59, color: 3,},
+                          ColorLed {position: 69, color: 3,},
+                          ColorLed {position: 79, color: 3,},
+                          ColorLed {position: 89, color: 3,},]);
 
     thread::sleep(Duration::from_millis(500));
 
     println!("Top controls on");
-    lpad.light_leds(&vec![&ColorLed {position: 104, color: 4,},
-                          &ColorLed {position: 105, color: 4,},
-                          &ColorLed {position: 106, color: 4,},
-                          &ColorLed {position: 107, color: 4,},
-                          &ColorLed {position: 108, color: 4,},
-                          &ColorLed {position: 109, color: 4,},
-                          &ColorLed {position: 110, color: 4,},
-                          &ColorLed {position: 111, color: 4,},]);
+    lpad.light_leds(&vec![ColorLed {position: 104, color: 4,},
+                          ColorLed {position: 105, color: 4,},
+                          ColorLed {position: 106, color: 4,},
+                          ColorLed {position: 107, color: 4,},
+                          ColorLed {position: 108, color: 4,},
+                          ColorLed {position: 109, color: 4,},
+                          ColorLed {position: 110, color: 4,},
+                          ColorLed {position: 111, color: 4,},]);
 
 
     thread::sleep(Duration::from_millis(500));
