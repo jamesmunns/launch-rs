@@ -1,12 +1,15 @@
 extern crate launchpad;
 extern crate clap;
 extern crate portmidi as pm;
+extern crate rand;
 
 use launchpad::*;
 
 use std::thread;
 use std::process;
 use std::time::Duration;
+use rand::Rng;
+
 
 mod cli;
 
@@ -156,6 +159,24 @@ fn run() {
 
     println!("Scroll Text");
     lpad.scroll_text(27, false, &format!("{}Your {}Turn!", SCROLL_SLOWER, SCROLL_FASTER));
+
+    thread::sleep(Duration::from_millis(6000));
+
+    for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars() {
+        let color = rand::thread_rng().gen_range(1, 128);
+
+        for j in (0..8).rev() {
+            lpad.light_char(c, j, color);
+            thread::sleep(Duration::from_millis(100));
+        }
+        thread::sleep(Duration::from_millis(1000));
+        for j in (-7..0).rev() {
+            lpad.light_char(c, j, color);
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+    thread::sleep(Duration::from_millis(500));
+
 
     let mut foo = 0;
 
