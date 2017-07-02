@@ -159,6 +159,45 @@ impl LaunchpadMk2 {
             .expect("Fail");
     }
 
+    /// Set the LEDs in a shape of a character
+    pub fn light_char(&mut self, ch: char, pos: i8, color: Color) {
+        assert!(pos < 8);
+        assert!(pos > -8);
+        assert_eq!(ch.len_utf8(), 1);
+
+        let loc = ch as usize;
+
+        let mut disp: Vec<ColorLed> = Vec::new();
+
+        for row in (1..9).rev() {
+
+            let mut char_color: Color;
+            let row_char = FONT8X8[loc * 8 + (8 - row) as usize];
+
+            for col in 1..9 {
+                let position = row * 10 + col + pos;
+
+                 if ((row_char << (col - 1)) & 0x80) == 0 || //check against font bitmap
+                    position > (row * 10 + 8) || // out of bounds
+                    position < (row * 10) { // out of bounds
+                    char_color = 0;
+                } else {
+                    char_color = color;
+                }
+
+                if check_char_position(position as u8) {
+                    disp.push(
+                        ColorLed {
+                            position: position as u8,
+                            color: char_color,
+                        }
+                    );
+                }
+            }
+        }
+        self.light_leds(&disp);
+    }
+
     /// Light a column of LEDs to the same color.
     pub fn light_column(&mut self, col: &ColorColumn) {
         // F0h 00h 20h 29h 02h 18h 0Ch <Column> <Colour> F7h
@@ -241,6 +280,20 @@ impl LaunchpadMk2 {
     pub fn poll(&self) -> Option<Vec<pm::MidiEvent>> {
         self.input_port.poll().expect("Closed Stream");
         self.input_port.read_n(1024).expect("Failed to read")
+    }
+}
+
+fn check_char_position(pos: u8) -> bool{
+    match pos {
+        11...19 => true,
+        21...29 => true,
+        31...39 => true,
+        41...49 => true,
+        51...59 => true,
+        61...69 => true,
+        71...79 => true,
+        81...89 => true,
+        _ => false,
     }
 }
 
