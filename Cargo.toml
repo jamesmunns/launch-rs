@@ -7,3 +7,4 @@ authors = ["James Munns <james.munns@gmail.com>"]
 portmidi = "0.2.4"
 launchpad = "*"
 clap = "*"
+rand = "0.3"

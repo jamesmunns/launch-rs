@@ -4,6 +4,8 @@
 
 use pm;
 use color::nearest_palette;
+use font::FONT8X8;
+use ref_slice::ref_slice;
 
 pub type Color = u8;
 
@@ -136,72 +138,115 @@ impl LaunchpadMk2 {
     pub fn light_led(&mut self, led: &ColorLed) {
         // F0h 00h 20h 29h 02h 18h 0Ah <LED> <Colour> F7h
         // Message can be repeated up to 80 times.
-        self.light_leds(&[led])
+
+        self.light_leds(ref_slice(led));
     }
 
     /// Set LEDs to a certain color. Up to 80 LEDs can be set uniquely at once.
-    pub fn light_leds(&mut self, leds: &[&ColorLed]) {
+    pub fn light_leds(&mut self, leds: &[ColorLed]) {
         assert!(leds.len() <= 80);
+
+        let mut msg: Vec<u8> = vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0A];
         for led in leds {
             assert_position(led.position);
             assert_color(led.color);
-            self.output_port
-                .write_sysex(0,
-                             &[0xF0,
-                               0x00,
-                               0x20,
-                               0x29,
-                               0x02,
-                               0x18,
-                               0x0A,
-                               led.position,
-                               led.color,
-                               0xF7])
-                .expect("Fail");
+            msg.push(led.position);
+            msg.push(led.color);
         }
+        msg.push(0xF7);
+
+        self.output_port.write_sysex(0, &msg)
+            .expect("Fail");
+    }
+
+    /// Set the LEDs in a shape of a character
+    pub fn light_char(&mut self, ch: char, pos: i8, color: Color) {
+        assert!(pos < 8);
+        assert!(pos > -8);
+        assert_eq!(ch.len_utf8(), 1);
+
+        let loc = ch as usize;
+
+        let mut disp: Vec<ColorLed> = Vec::new();
+
+        for row in (1..9).rev() {
+
+            let mut char_color: Color;
+            let row_char = FONT8X8[loc * 8 + (8 - row) as usize];
+
+            for col in 1..9 {
+                let position = row * 10 + col + pos;
+
+                 if ((row_char << (col - 1)) & 0x80) == 0 || //check against font bitmap
+                    position > (row * 10 + 8) || // out of bounds
+                    position < (row * 10) { // out of bounds
+                    char_color = 0;
+                } else {
+                    char_color = color;
+                }
+
+                if check_char_position(position as u8) {
+                    disp.push(
+                        ColorLed {
+                            position: position as u8,
+                            color: char_color,
+                        }
+                    );
+                }
+            }
+        }
+        self.light_leds(&disp);
     }
 
     /// Light a column of LEDs to the same color.
     pub fn light_column(&mut self, col: &ColorColumn) {
         // F0h 00h 20h 29h 02h 18h 0Ch <Column> <Colour> F7h
         // Message can be repeated up to 9 times.
-        self.light_columns(&[col])
+
+        self.light_columns(ref_slice(col));
     }
 
     /// Light columns of LEDs to the same color. Each column may be set to a
     /// unique color. Up to 9 columns may be set at once.
-    pub fn light_columns(&mut self, cols: &[&ColorColumn]) {
+    pub fn light_columns(&mut self, cols: &[ColorColumn]) {
         assert!(cols.len() <= 9);
+
+        let mut msg: Vec<u8> = vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0C];
         for col in cols {
             assert_column(col.column);
             assert_color(col.color);
-            self.output_port
-                .write_sysex(0,
-                             &[0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0C, col.column, col.color,
-                               0xF7])
-                .expect("Fail");
+            msg.push(col.column);
+            msg.push(col.color);
         }
+        msg.push(0xF7);
+
+        self.output_port.write_sysex(0, &msg)
+            .expect("Fail");
     }
 
     /// Light a row of LEDs to the same color.
     pub fn light_row(&mut self, row: &ColorRow) {
         // F0h 00h 20h 29h 02h 18h 0Dh <Row> <Colour> F7h
         // Message can be repeated up to 9 times.
-        self.light_rows(&[row])
+        self.light_rows(ref_slice(row));
     }
 
     /// Light rows of LEDs to the same color. Each row may be set to a
     /// unique color. Up to 9 rows may be set at once.
-    pub fn light_rows(&mut self, rows: &[&ColorRow]) {
+    pub fn light_rows(&mut self, rows: &[ColorRow]) {
         assert!(rows.len() <= 9);
+
+        let mut msg: Vec<u8> = vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0D];
         for row in rows {
             assert_row(row.row);
             assert_color(row.color);
-            self.output_port
-                .write_sysex(0,
-                             &[0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0D, row.row, row.color, 0xF7])
-                .expect("Fail");
+            msg.push(row.row);
+            msg.push(row.color);
         }
+        msg.push(0xF7);
+
+        self.output_port.write_sysex(0, &msg)
+            .expect("Fail");
     }
 
     /// Begin scrolling a message. The screen will be blanked, and the letters
@@ -235,6 +280,20 @@ impl LaunchpadMk2 {
     pub fn poll(&self) -> Option<Vec<pm::MidiEvent>> {
         self.input_port.poll().expect("Closed Stream");
         self.input_port.read_n(1024).expect("Failed to read")
+    }
+}
+
+fn check_char_position(pos: u8) -> bool{
+    match pos {
+        11...19 => true,
+        21...29 => true,
+        31...39 => true,
+        41...49 => true,
+        51...59 => true,
+        61...69 => true,
+        71...79 => true,
+        81...89 => true,
+        _ => false,
     }
 }
 
