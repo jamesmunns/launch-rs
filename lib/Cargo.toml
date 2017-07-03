@@ -10,3 +10,4 @@ documentation = "https://docs.rs/launchpad"
 
 [dependencies]
 portmidi = "0.2.4"
+ref_slice = "1.1.1"
