@@ -1,12 +1,3 @@
-[root]
-name = "launch-rs"
-version = "0.1.0"
-dependencies = [
- "clap 2.19.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "launchpad 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "portmidi 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
 [[package]]
 name = "ansi_term"
 version = "0.9.0"
@@ -42,9 +33,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "launchpad"
+name = "launch-rs"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "clap 2.19.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "launchpad 0.1.1",
+ "portmidi 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "launchpad"
+version = "0.1.1"
 dependencies = [
  "portmidi 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -104,7 +103,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
 "checksum clap 2.19.3 (registry+https://github.com/rust-lang/crates.io-index)" = "95b78f3fe0fc94c13c731714363260e04b557a637166f33a4570d3189d642374"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
-"checksum launchpad 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "79cc83defa9cc94427857dcc14523f69d761fa785201c941c4eb13f3e6e9bc41"
 "checksum libc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)" = "a51822fc847e7a8101514d1d44e354ba2ffa7d4c194dcab48870740e327cac70"
 "checksum portmidi 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8e72656dc8167fc128af6ea91224ab4cb9a584cb1ecdcf955a31dbcf3f888747"
 "checksum strsim 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "67f84c44fbb2f91db7fef94554e6b2ac05909c9c0b0bc23bb98d3a1aebfe7f7c"
