@@ -5,5 +5,5 @@ authors = ["James Munns <james.munns@gmail.com>"]
 
 [dependencies]
 portmidi = "0.2.4"
-launchpad = "*"
+launchpad = { path = "lib/" }
 clap = "*"

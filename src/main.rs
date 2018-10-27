@@ -36,7 +36,7 @@ fn list() -> ! {
 fn run() {
     println!("Please enjoy!");
     let timeout = Duration::from_millis(1);
-    let mut lpad = LaunchpadMk2::guess();
+    let mut lpad = LaunchpadPro::guess();
 
     println!("Clear screen...");
     lpad.light_all(0);
@@ -62,7 +62,7 @@ fn run() {
     // println!("Fuzzy!");
 
     println!("Columns on!");
-    for i in 0..9 {
+    for i in 0..10 {
         lpad.light_column(&ColorColumn {
             column: i,
             color: 5,
@@ -73,7 +73,7 @@ fn run() {
     thread::sleep(Duration::from_millis(500));
 
     println!("Columns off!");
-    for i in 0..9 {
+    for i in 0..10 {
         lpad.light_row(&ColorRow { row: i, color: 0 });
         thread::sleep(Duration::from_millis(25));
     }
@@ -140,15 +140,38 @@ fn run() {
     thread::sleep(Duration::from_millis(500));
 
     println!("Top controls on");
-    lpad.light_leds(&vec![&ColorLed {position: 104, color: 4,},
-                          &ColorLed {position: 105, color: 4,},
-                          &ColorLed {position: 106, color: 4,},
-                          &ColorLed {position: 107, color: 4,},
-                          &ColorLed {position: 108, color: 4,},
-                          &ColorLed {position: 109, color: 4,},
-                          &ColorLed {position: 110, color: 4,},
-                          &ColorLed {position: 111, color: 4,},]);
+    lpad.light_leds(&vec![&ColorLed {position: 91, color: 4,},
+                          &ColorLed {position: 92, color: 4,},
+                          &ColorLed {position: 93, color: 4,},
+                          &ColorLed {position: 94, color: 4,},
+                          &ColorLed {position: 95, color: 4,},
+                          &ColorLed {position: 96, color: 4,},
+                          &ColorLed {position: 97, color: 4,},
+                          &ColorLed {position: 98, color: 4,},]);
 
+    thread::sleep(Duration::from_millis(500));
+
+    println!("Left controls on");
+    lpad.light_leds(&vec![&ColorLed {position: 10, color: 5,},
+                          &ColorLed {position: 20, color: 5,},
+                          &ColorLed {position: 30, color: 5,},
+                          &ColorLed {position: 40, color: 5,},
+                          &ColorLed {position: 50, color: 5,},
+                          &ColorLed {position: 60, color: 5,},
+                          &ColorLed {position: 70, color: 5,},
+                          &ColorLed {position: 80, color: 5,},]);
+
+    thread::sleep(Duration::from_millis(500));
+
+    println!("Bottom controls on");
+    lpad.light_leds(&vec![&ColorLed {position: 01, color: 6,},
+                          &ColorLed {position: 02, color: 6,},
+                          &ColorLed {position: 03, color: 6,},
+                          &ColorLed {position: 04, color: 6,},
+                          &ColorLed {position: 05, color: 6,},
+                          &ColorLed {position: 06, color: 6,},
+                          &ColorLed {position: 07, color: 6,},
+                          &ColorLed {position: 08, color: 6,},]);
 
     thread::sleep(Duration::from_millis(500));
     println!("Blank screen");
