@@ -1,6 +1,3 @@
-extern crate portmidi as pm;
-extern crate palette;
-
 mod color;
 mod launchpad;
 

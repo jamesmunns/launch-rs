@@ -12,7 +12,7 @@ fn to_float(val: u8) -> f32 {
 }
 
 fn rgb_to_lab(red: u8, green: u8, blue: u8) -> Lab {
-    LinSrgb::new(to_float(red), to_float(green), to_float(blue)).into_lab()
+    LinSrgb::new(to_float(red), to_float(green), to_float(blue)).into()
 }
 
 /// Use the 3d nearest neighbor to determine an approximation for RGB colors
@@ -33,7 +33,7 @@ pub fn nearest_palette(red: u8, green: u8, blue: u8) -> u8 {
 
         if distance < furthest_dist {
             furthest_dist = distance;
-            furthest_va = i;
+            furthest_val = i;
         }
     }
 

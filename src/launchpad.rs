@@ -2,8 +2,9 @@
 //!
 //! For now, only Launchpad Mark 2 devices are supported.
 
-use pm;
-use color::nearest_palette;
+use portmidi::{InputPort, MidiEvent, OutputPort, PortMidi};
+
+use crate::color::nearest_palette;
 
 pub type Color = u8;
 
@@ -12,9 +13,9 @@ pub type Color = u8;
 /// PortMidi device ourselves, hold it. Otherwise, trust the implementer to
 /// not destroy it (or further calls will fail (sometimes silently?))
 pub struct LaunchpadMk2 {
-    input_port: pm::InputPort,
-    output_port: pm::OutputPort,
-    midi: Option<pm::PortMidi>,
+    input_port: InputPort,
+    output_port: OutputPort,
+    midi: Option<PortMidi>,
 }
 
 /// A single button/led
@@ -50,7 +51,7 @@ impl LaunchpadMk2 {
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names
     pub fn autodetect() -> LaunchpadMk2 {
-        let midi = pm::PortMidi::new().expect("Failed to open PortMidi Instance!");
+        let midi = PortMidi::new().expect("Failed to open PortMidi Instance!");
         let mut launchpad = Self::autodetect_from(&midi);
         launchpad.midi = Some(midi);
         launchpad
@@ -59,7 +60,7 @@ impl LaunchpadMk2 {
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names. Bring your own
     /// PortMidi.
-    pub fn autodetect_from(midi: &pm::PortMidi) -> LaunchpadMk2 {
+    pub fn autodetect_from(midi: &PortMidi) -> LaunchpadMk2 {
         let devices = midi.devices().expect("Failed to retrieve MIDI devices!");
 
         let mut input: Option<i32> = None;
@@ -233,7 +234,7 @@ impl LaunchpadMk2 {
     }
 
     /// Retrieve pending MidiEvents
-    pub fn poll(&self) -> Option<Vec<pm::MidiEvent>> {
+    pub fn poll(&self) -> Option<Vec<MidiEvent>> {
         self.input_port.poll().expect("Closed stream");
         self.input_port.read_n(1024).expect("Failed to read")
     }
@@ -243,15 +244,15 @@ impl LaunchpadMk2 {
 fn assert_position(pos: u8) {
     // Probably just make a Result
     if !match pos {
-        11...19 => true,
-        21...29 => true,
-        31...39 => true,
-        41...49 => true,
-        51...59 => true,
-        61...69 => true,
-        71...79 => true,
-        81...89 => true,
-        104...111 => true,
+        11..=19 => true,
+        21..=29 => true,
+        31..=39 => true,
+        41..=49 => true,
+        51..=59 => true,
+        61..=69 => true,
+        71..=79 => true,
+        81..=89 => true,
+        104..=111 => true,
         _ => false,
     } {
         panic!("Bad position!")
