@@ -49,23 +49,23 @@ pub const SCROLL_FASTEST: &'static str = "\u{07}";
 impl LaunchpadMk2 {
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names
-    pub fn guess() -> LaunchpadMk2 {
+    pub fn autodetect() -> LaunchpadMk2 {
         let midi = pm::PortMidi::new().expect("Failed to open PortMidi Instance!");
-        let mut retval = Self::guess_from(&midi);
-        retval.midi = Some(midi);
-        retval
+        let mut launchpad = Self::autodetect_from(&midi);
+        launchpad.midi = Some(midi);
+        launchpad
     }
 
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names. Bring your own
     /// PortMidi.
-    pub fn guess_from(midi: &pm::PortMidi) -> LaunchpadMk2 {
-        let devs = midi.devices().expect("Failed to get Midi Device!");
+    pub fn autodetect_from(midi: &pm::PortMidi) -> LaunchpadMk2 {
+        let devices = midi.devices().expect("Failed to retrieve MIDI devices!");
 
         let mut input: Option<i32> = None;
         let mut output: Option<i32> = None;
 
-        for d in devs {
+        for d in devices {
             if !d.name().contains("Launchpad MK2") {
                 continue;
             }
@@ -78,18 +78,19 @@ impl LaunchpadMk2 {
                 output = Some(d.id() as i32);
             }
 
+            // TODO use more idiomatic control flow
             if input.is_some() && output.is_some() {
                 break;
             }
         }
 
-        let input_port = input.expect("No Launchpad Mk2 Input Found!");
-        let output_port = output.expect("No Launchpad Mk2 Output Found!");
+        let input_port = input.expect("No Launchpad MK2 input found!");
+        let output_port = output.expect("No Launchpad MK2 output found!");
 
         let input_device = midi.device(input_port)
-            .expect("No Launchpad Input found!");
+            .expect("No Launchpad input found");
         let output_device = midi.device(output_port)
-            .expect("No Launchpad Output found!");
+            .expect("No Launchpad output found");
 
         let input = midi.input_port(input_device, 1024)
             .expect("Failed to open port");
@@ -110,7 +111,7 @@ impl LaunchpadMk2 {
         // Message cannot be repeated.
         self.output_port
             .write_sysex(0, &[0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0E, color, 0xF7])
-            .expect("Fail");
+            .expect("Could not write MIDI message");
     }
 
     /// Set a single LED to flash. Uses a smaller header than `flash_led` or
@@ -148,16 +149,16 @@ impl LaunchpadMk2 {
             self.output_port
                 .write_sysex(0,
                              &[0xF0,
-                               0x00,
-                               0x20,
-                               0x29,
-                               0x02,
-                               0x18,
-                               0x0A,
-                               led.position,
-                               led.color,
-                               0xF7])
-                .expect("Fail");
+                                 0x00,
+                                 0x20,
+                                 0x29,
+                                 0x02,
+                                 0x18,
+                                 0x0A,
+                                 led.position,
+                                 led.color,
+                                 0xF7])
+                .expect("Could not write MIDI message");
         }
     }
 
@@ -208,12 +209,12 @@ impl LaunchpadMk2 {
     /// will be the same color. If the message is set to loop, it can be cancelled
     /// by sending an empty `scroll_text` command. String should only contain ASCII
     /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
-    pub fn scroll_text(&mut self, color: Color, doloop: bool, text: &str) {
+    pub fn scroll_text(&mut self, color: Color, do_loop: bool, text: &str) {
         // 14H <Color> <loop> <text...> F7h
         // Message cannot be repeated.
         assert_color(color);
         let mut msg: Vec<u8> =
-            vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x14, color, if doloop { 0x01 } else { 0x00 }];
+            vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x14, color, if do_loop { 0x01 } else { 0x00 }];
         msg.extend_from_slice(text.as_bytes());
         msg.push(0xF7);
 
@@ -226,14 +227,14 @@ impl LaunchpadMk2 {
     /// a specific RGB color takes at least 12 bytes.
     pub fn light_fuzzy_rgb(&mut self, position: u8, red: u8, green: u8, blue: u8) {
         self.light_led(&ColorLed {
-            position: position,
+            position,
             color: nearest_palette(red, green, blue),
         })
     }
 
     /// Retrieve pending MidiEvents
     pub fn poll(&self) -> Option<Vec<pm::MidiEvent>> {
-        self.input_port.poll().expect("Closed Stream");
+        self.input_port.poll().expect("Closed stream");
         self.input_port.read_n(1024).expect("Failed to read")
     }
 }
@@ -253,14 +254,14 @@ fn assert_position(pos: u8) {
         104...111 => true,
         _ => false,
     } {
-        panic!("Bad Positon!")
+        panic!("Bad position!")
     }
 }
 
 /// Make sure the palette color is valid
 fn assert_color(clr: u8) {
     if clr > 127 {
-        panic!("Bad Color!");
+        panic!("Bad color!");
     }
 }
 
@@ -274,7 +275,7 @@ fn assert_column(col: u8) {
 /// Make sure the row is valid
 fn assert_row(row: u8) {
     if row > 8 {
-        panic!("Bad Row");
+        panic!("Bad row");
     }
 }
 
