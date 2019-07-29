@@ -20,6 +20,11 @@ On Ubuntu / Debian:
 apt-get install libportmidi-dev
 ```
 
+On Fedora:
+```sh
+dnf install portmidi-devel
+```
+
 Arch Linux:
 ```sh
 pacman -S portmidi
@@ -43,10 +48,12 @@ First, add `launchpad` to your Cargo.toml:
 
 ```toml
 [dependencies]
-launchpad = "0.1"
+launchpad = "1.0"
 ```
 
 Then, get started!
+
+TODO:pdate example not up-to-date
 
 ```rust
 extern crate launchpad;
@@ -98,7 +105,7 @@ fn main() {
 
 ## References
 * [Palette Table Information](http://launchpaddr.com/mk2palette/)
-* [Launchpad Mk2 Programmers Reference Manual](https://global.novationmusic.com/sites/default/files/novation/downloads/10529/launchpad-mk2-programmers-reference-guide_0.pdf) (PDF warning)
+* [Launchpad Mk2 Programmers Reference Manual](https://resource.novationmusic.com/sites/default/files/novation/downloads/10598/launchpad-pro-programmers-reference-guide_0.pdf) (PDF warning)
 
 ## License
 

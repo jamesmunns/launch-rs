@@ -5,8 +5,7 @@
 use portmidi::{InputPort, MidiEvent, OutputPort, PortMidi};
 
 use crate::color::nearest_palette;
-
-pub type Color = u8;
+use crate::RGBColor;
 
 /// A Launchpad Mark 2 Device. This library requires the PortMidi device
 /// used to create the launchpad to have the same lifetime. If we create the
@@ -18,26 +17,26 @@ pub struct LaunchpadMk2 {
     midi: Option<PortMidi>,
 }
 
-/// A single button/led
-#[derive(Debug)]
-pub struct ColorLed {
-    pub color: Color,
-    pub position: u8,
+// TODO
+pub enum LaunchpadError {
+    InvalidRawColor,
+    InvalidPosition,
+    Midi(portmidi::Error),
 }
 
 #[derive(Debug)]
-/// A single column (0...8)
-pub struct ColorColumn {
-    pub color: Color,
-    pub column: u8,
+pub enum Event {
+    Press(Location),
+    Release(Location),
 }
 
-/// A single row (0...8)
 #[derive(Debug)]
-pub struct ColorRow {
-    pub color: Color,
-    pub row: u8,
+pub enum Location {
+    Button(u8, bool),
+    Pad(u8, u8),
 }
+
+type Result<T> = std::result::Result<T, LaunchpadError>;
 
 pub const SCROLL_SLOWEST: &'static str = "\u{01}";
 pub const SCROLL_SLOWER: &'static str = "\u{02}";
@@ -79,7 +78,7 @@ impl LaunchpadMk2 {
                 output = Some(d.id() as i32);
             }
 
-            // TODO use more idiomatic control flow
+            // TODO use more idiomatic control flow?
             if input.is_some() && output.is_some() {
                 break;
             }
@@ -101,183 +100,217 @@ impl LaunchpadMk2 {
         LaunchpadMk2 {
             input_port: input,
             output_port: output,
-            midi: None,
+            midi: None, // TODO what?
         }
     }
 
-    /// Set all LEDs to the same color
-    pub fn light_all(&mut self, color: Color) {
-        assert_color(color);
-        // F0h 00h 20h 29h 02h 18h 0Eh <Colour> F7h
+    // === RAW === //
+
+    /// Light all LEDs to the same color
+    pub fn light_all_raw(&mut self, raw_color: u8) -> Result<()> {
         // Message cannot be repeated.
-        self.output_port
-            .write_sysex(0, &[0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0E, color, 0xF7])
-            .expect("Could not write MIDI message");
+        self.write_sysex(&[0x0E, raw_color])
     }
 
-    /// Set a single LED to flash. Uses a smaller header than `flash_led` or
-    /// `flash_leds` with a single item
-    pub fn flash_single(&mut self, led: &ColorLed) {
-        // ch2
-        // (0x91, <btn>, <color>)
-        assert_position(led.position);
-        assert_color(led.color);
-        self.output_port.write_message([0x91, led.position, led.color]).expect("Fail");
+    /// Light a single LED to a color.
+    pub fn light_single_raw(&mut self, x: u8, y: u8, color: u8) -> Result<()> {
+        let pos = midi_from_coords((x, y))
+            .ok_or(LaunchpadError::InvalidPosition)?;
+        self.write_sysex(&[0x0A, pos, color])
     }
 
-    /// Set a single LED to pulse. Uses a smaller header than `pulse_led` or
-    /// `pulse_leds` with a single item
-    pub fn pulse_single(&mut self, led: &ColorLed) {
-        // ch3
-        // (0x92, <btn>, <color>)
-
-        self.output_port.write_message([0x92, led.position, led.color]).expect("Fail");
+    /// Set a single LED to flash to a color.
+    pub fn flash_single_raw(&mut self, x: u8, y: u8, color: u8) -> Result<()> {
+        let pos = midi_from_coords((x, y))
+            .ok_or(LaunchpadError::InvalidPosition)?;
+        self.write_sysex(&[0x23, 0, pos, color])
     }
 
-    /// Set a single LED to a palette color. Use `light_single` instead, its faster.
-    pub fn light_led(&mut self, led: &ColorLed) {
-        // F0h 00h 20h 29h 02h 18h 0Ah <LED> <Colour> F7h
-        // Message can be repeated up to 80 times.
-        self.light_leds(&[led])
-    }
-
-    /// Set LEDs to a certain color. Up to 80 LEDs can be set uniquely at once.
-    pub fn light_leds(&mut self, leds: &[&ColorLed]) {
-        assert!(leds.len() <= 80);
-        for led in leds {
-            assert_position(led.position);
-            assert_color(led.color);
-            self.output_port
-                .write_sysex(0,
-                             &[0xF0,
-                                 0x00,
-                                 0x20,
-                                 0x29,
-                                 0x02,
-                                 0x18,
-                                 0x0A,
-                                 led.position,
-                                 led.color,
-                                 0xF7])
-                .expect("Could not write MIDI message");
-        }
+    /// Set a single LED to pulse to a color.
+    pub fn pulse_single_raw(&mut self, x: u8, y: u8, color: u8) -> Result<()> {
+        let pos = midi_from_coords((x, y))
+            .ok_or(LaunchpadError::InvalidPosition)?;
+        self.write_sysex(&[0x28, 0, pos, color])
     }
 
     /// Light a column of LEDs to the same color.
-    pub fn light_column(&mut self, col: &ColorColumn) {
-        // F0h 00h 20h 29h 02h 18h 0Ch <Column> <Colour> F7h
-        // Message can be repeated up to 9 times.
-        self.light_columns(&[col])
-    }
-
-    /// Light columns of LEDs to the same color. Each column may be set to a
-    /// unique color. Up to 9 columns may be set at once.
-    pub fn light_columns(&mut self, cols: &[&ColorColumn]) {
-        assert!(cols.len() <= 9);
-        for col in cols {
-            assert_column(col.column);
-            assert_color(col.color);
-            self.output_port
-                .write_sysex(0,
-                             &[0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0C, col.column, col.color,
-                               0xF7])
-                .expect("Fail");
+    pub fn light_column_raw(&mut self, x: u8, color: u8) -> Result<()> {
+        if !is_valid_coord(x) {
+            return Err(LaunchpadError::InvalidPosition);
         }
+        self.write_sysex(&[0x0C, x, color])
     }
 
     /// Light a row of LEDs to the same color.
-    pub fn light_row(&mut self, row: &ColorRow) {
-        // F0h 00h 20h 29h 02h 18h 0Dh <Row> <Colour> F7h
-        // Message can be repeated up to 9 times.
-        self.light_rows(&[row])
+    pub fn light_row_raw(&mut self, y: u8, color: u8) -> Result<()> {
+        if !is_valid_coord(y) {
+            return Err(LaunchpadError::InvalidPosition);
+        }
+        self.write_sysex(&[0x0D, y, color])
     }
 
-    /// Light rows of LEDs to the same color. Each row may be set to a
-    /// unique color. Up to 9 rows may be set at once.
-    pub fn light_rows(&mut self, rows: &[&ColorRow]) {
-        assert!(rows.len() <= 9);
-        for row in rows {
-            assert_row(row.row);
-            assert_color(row.color);
-            self.output_port
-                .write_sysex(0,
-                             &[0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x0D, row.row, row.color, 0xF7])
-                .expect("Fail");
-        }
+    /// Light a button LED to a color.
+    pub fn light_button_raw(&mut self, coord: u8, top: bool, color: u8) -> Result<()> {
+        let position = midi_from_button(coord, top)
+            .ok_or(LaunchpadError::InvalidPosition)?;
+        self.write_sysex(&[0x0A, position, color])
     }
 
     /// Begin scrolling a message. The screen will be blanked, and the letters
     /// will be the same color. If the message is set to loop, it can be cancelled
     /// by sending an empty `scroll_text` command. String should only contain ASCII
     /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
-    pub fn scroll_text(&mut self, color: Color, do_loop: bool, text: &str) {
-        // 14H <Color> <loop> <text...> F7h
-        // Message cannot be repeated.
-        assert_color(color);
-        let mut msg: Vec<u8> =
-            vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18, 0x14, color, if do_loop { 0x01 } else { 0x00 }];
+    pub fn scroll_text_raw(&mut self, color: u8, do_loop: bool, text: &str) -> Result<()> {
+        if !is_valid_color(color) {
+            return Err(LaunchpadError::InvalidRawColor)
+        }
+
+        let mut msg: Vec<u8> = vec![0x14, color, do_loop as u8];
         msg.extend_from_slice(text.as_bytes());
-        msg.push(0xF7);
 
-        self.output_port.write_sysex(0, &msg).expect("Fail");
+        self.write_sysex(&msg)
     }
 
-    /// Experimental. Try to set an LED by the color value in a "fast" way by
-    /// by choosing the nearest neighbor palette color. This is faster because
-    /// setting an LED using palette colors is a 3 byte message, whereas setting
-    /// a specific RGB color takes at least 12 bytes.
-    pub fn light_fuzzy_rgb(&mut self, position: u8, red: u8, green: u8, blue: u8) {
-        self.light_led(&ColorLed {
-            position,
-            color: nearest_palette(red, green, blue),
-        })
+    // === RGB === //
+
+    /// Light all LEDs to the same RGB color.
+    ///
+    /// This is more expensive than `light_all_raw`.
+    pub fn light_all(&mut self, color: &RGBColor) -> Result<()> {
+        self.light_all_raw(nearest_palette(color))
     }
 
-    /// Retrieve pending MidiEvents
-    pub fn poll(&self) -> Option<Vec<MidiEvent>> {
-        self.input_port.poll().expect("Closed stream");
-        self.input_port.read_n(1024).expect("Failed to read")
+    /// Light a single LED to a RGB color.
+    ///
+    /// This is more expensive than `light_single_raw`.
+    pub fn light_single(&mut self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
+        self.light_single_raw(x, y, nearest_palette(color))
+    }
+
+    /// Set a single LED to flash a RGB color.
+    ///
+    /// This is more expensive than `flash_single_raw`.
+    pub fn flash_single(&mut self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
+        self.flash_single_raw(x, y, nearest_palette(color))
+    }
+
+    /// Set a single LED to pulse a RGB color.
+    ///
+    /// This is more expensive than `pulse_single_raw`.
+    pub fn pulse_single(&mut self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
+        self.pulse_single_raw(x, y, nearest_palette(color))
+    }
+
+    /// Light a row of LEDs to the same RGB color.
+    ///
+    /// This is more expensive than `light_row_raw`.
+    pub fn light_row(&mut self, y: u8, color: &RGBColor) -> Result<()> {
+        self.light_row_raw(y, nearest_palette(color))
+    }
+
+    /// Light a column of LEDs to the same RGB color.
+    ///
+    /// This is more expensive than `light_column_raw`.
+    pub fn light_column(&mut self, x: u8, color: &RGBColor) -> Result<()> {
+        self.light_column_raw(x, nearest_palette(color))
+    }
+
+    /// Light a button LED to aRGB color.
+    ///
+    /// This is more expensive than `light_button_raw`
+    pub fn light_button(&mut self, coord: u8, top: bool, color: &RGBColor) -> Result<()> {
+        self.light_button_raw(coord, top, nearest_palette(color))
+    }
+
+    /// Begin scrolling a message. The screen will be blanked, and the letters
+    /// will be the same RGB color. If the message is set to loop, it can be cancelled
+    /// by sending an empty `scroll_text` command. String should only contain ASCII
+    /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
+    ///
+    /// This is more expensive than `scroll_text_raw`.
+    pub fn scroll_text(&mut self, color: &RGBColor, do_loop: bool, text: &str) -> Result<()> {
+        self.scroll_text_raw(nearest_palette(color), do_loop,  text)
+    }
+
+    pub fn poll(&self) -> Result<Option<Vec<Event>>> {
+        self.input_port.poll().or_else(|err| Err(LaunchpadError::Midi(err)))?;
+        let events = self.input_port.read_n(1024).or_else(|err| Err(LaunchpadError::Midi(err)))?;
+        Ok(events.map(|events| {
+            events.iter().filter_map(|evt| {
+                let on = evt.message.data2 == 127;
+
+                let value = evt.message.data1;
+
+                // not magic
+                let location = match value {
+                    19 | 29 | 39 | 49 | 59 | 69 | 79 | 89 => Some(Location::Button(value / 10 - 1, false)),
+                    11..=88 => Some(Location::Pad(value % 10 - 1, value / 10 - 1)),
+                    104..=111 => Some(Location::Button(value - 104, true)),
+                    _ => None,
+                };
+
+                location.map(|loc| {
+                    if evt.message.data2 == 0 {
+                        Event::Release(loc)
+                    } else {
+                        Event::Press(loc)
+                    }
+                }) // if location was none, this will be quietly filtered out
+            }).collect()
+        }))
+    }
+
+    /// Write a SysEx message with the Launchpad Mk2 header
+    fn write_sysex(&mut self, data: &[u8]) -> Result<()> {
+        let mut msg = vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18]; // header
+        msg.extend_from_slice(data);
+        msg.push(0xF7); // terminate
+
+        self.output_port.write_sysex(0, &msg)
+            .map_err(|e| LaunchpadError::Midi(e))
     }
 }
 
-/// Make sure the position is valid
-fn assert_position(pos: u8) {
-    // Probably just make a Result
-    if !match pos {
-        11..=19 => true,
-        21..=29 => true,
-        31..=39 => true,
-        41..=49 => true,
-        51..=59 => true,
-        61..=69 => true,
-        71..=79 => true,
-        81..=89 => true,
-        104..=111 => true,
-        _ => false,
-    } {
-        panic!("Bad position!")
+fn coords_from_midi(midi: u8) -> Option<(u8, u8)> {
+    let val = midi - 11; // align the minimum to zero
+    let x = val % 10;
+    let y = (val - x) / 10;
+
+    if is_valid_coords((x, y)) { Some((x, y) ) } else { None }
+}
+
+fn midi_from_coords(coords: (u8, u8)) -> Option<u8> {
+    if is_valid_coords(coords) {
+        Some(11 + coords.0 + coords.1 * 10)
+    } else {
+        None
+    }
+}
+
+fn midi_from_button(coord: u8, top: bool) -> Option<u8> {
+    if is_valid_coord(coord) {
+        if top {
+            Some(104 + coord)
+        } else {
+            Some(10 * coord + 19)
+        }
+    } else {
+        None
     }
 }
 
 /// Make sure the palette color is valid
-fn assert_color(clr: u8) {
-    if clr > 127 {
-        panic!("Bad color!");
-    }
+fn is_valid_color(raw_color: u8) -> bool {
+    raw_color < 128
 }
 
 /// Make sure the column is valid
-fn assert_column(col: u8) {
-    if col > 8 {
-        panic!("Bad Column");
-    }
+fn is_valid_coord(pos: u8) -> bool {
+    pos < 8
 }
 
-/// Make sure the row is valid
-fn assert_row(row: u8) {
-    if row > 8 {
-        panic!("Bad row");
-    }
+fn is_valid_coords(coords: (u8, u8)) -> bool {
+    is_valid_coord(coords.0) && is_valid_coord(coords.1)
 }
 
 //////////////////////////////////////////////////////////////////
