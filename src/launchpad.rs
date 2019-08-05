@@ -17,23 +17,28 @@ pub struct LaunchpadMk2 {
 }
 
 // TODO
+#[derive(Debug)]
 pub enum LaunchpadError {
     InvalidRawColor,
     InvalidPosition,
     Midi(portmidi::Error),
 }
 
-#[derive(Debug)]
-pub enum Event {
-    Press(Location),
-    Release(Location),
+mod event {
+    #[derive(Debug)]
+    pub enum Event {
+        Press(Location),
+        Release(Location),
+    }
+
+    #[derive(Debug)]
+    pub enum Location {
+        Button(u8, bool),
+        Pad(u8, u8),
+    }
 }
 
-#[derive(Debug)]
-pub enum Location {
-    Button(u8, bool),
-    Pad(u8, u8),
-}
+use event::*;
 
 type Result<T> = std::result::Result<T, LaunchpadError>;
 
@@ -51,13 +56,13 @@ impl LaunchpadMk2 {
     pub fn autodetect() -> Result<LaunchpadMk2> {
         let midi = PortMidi::new()
             .map_err(|err| LaunchpadError::Midi(err))?;
-        Ok(Self::autodetect_from(&midi))
+        Ok(Self::autodetect_from(&midi))?
     }
 
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names. Bring your own
     /// PortMidi.
-    pub fn autodetect_from(midi: &PortMidi) -> LaunchpadMk2 {
+    pub fn autodetect_from(midi: &PortMidi) -> Result<LaunchpadMk2> {
         let devices = midi.devices().expect("Failed to retrieve MIDI devices!");
 
         let mut input: Option<i32> = None;
@@ -91,47 +96,47 @@ impl LaunchpadMk2 {
             .expect("No Launchpad output found");
 
         let input = midi.input_port(input_device, 1024)
-            .expect("Failed to open port");
+            .map_err(|err| LaunchpadError::Midi(err))?;
         let output = midi.output_port(output_device, 1024)
-            .expect("Failed to open port");
+            .map_err(|err| LaunchpadError::Midi(err))?;
 
-        LaunchpadMk2 {
+        Ok(LaunchpadMk2 {
             input_port: input,
             output_port: output,
-        }
+        })
     }
 
     // === RAW === //
 
     /// Light all LEDs to the same color
-    pub fn light_all_raw(&mut self, raw_color: u8) -> Result<()> {
+    pub fn light_all_raw(&self, raw_color: u8) -> Result<()> {
         // Message cannot be repeated.
         self.write_sysex(&[0x0E, raw_color])
     }
 
     /// Light a single LED to a color.
-    pub fn light_single_raw(&mut self, x: u8, y: u8, color: u8) -> Result<()> {
+    pub fn light_single_raw(&self, x: u8, y: u8, color: u8) -> Result<()> {
         let pos = midi_from_coords((x, y))
             .ok_or(LaunchpadError::InvalidPosition)?;
         self.write_sysex(&[0x0A, pos, color])
     }
 
     /// Set a single LED to flash to a color.
-    pub fn flash_single_raw(&mut self, x: u8, y: u8, color: u8) -> Result<()> {
+    pub fn flash_single_raw(&self, x: u8, y: u8, color: u8) -> Result<()> {
         let pos = midi_from_coords((x, y))
             .ok_or(LaunchpadError::InvalidPosition)?;
         self.write_sysex(&[0x23, 0, pos, color])
     }
 
     /// Set a single LED to pulse to a color.
-    pub fn pulse_single_raw(&mut self, x: u8, y: u8, color: u8) -> Result<()> {
+    pub fn pulse_single_raw(&self, x: u8, y: u8, color: u8) -> Result<()> {
         let pos = midi_from_coords((x, y))
             .ok_or(LaunchpadError::InvalidPosition)?;
         self.write_sysex(&[0x28, 0, pos, color])
     }
 
     /// Light a column of LEDs to the same color.
-    pub fn light_column_raw(&mut self, x: u8, color: u8) -> Result<()> {
+    pub fn light_column_raw(&self, x: u8, color: u8) -> Result<()> {
         if !is_valid_coord(&x) {
             return Err(LaunchpadError::InvalidPosition);
         }
@@ -139,7 +144,7 @@ impl LaunchpadMk2 {
     }
 
     /// Light a row of LEDs to the same color.
-    pub fn light_row_raw(&mut self, y: u8, color: u8) -> Result<()> {
+    pub fn light_row_raw(&self, y: u8, color: u8) -> Result<()> {
         if !is_valid_coord(&y) {
             return Err(LaunchpadError::InvalidPosition);
         }
@@ -147,7 +152,7 @@ impl LaunchpadMk2 {
     }
 
     /// Light a button LED to a color.
-    pub fn light_button_raw(&mut self, coord: u8, top: bool, color: u8) -> Result<()> {
+    pub fn light_button_raw(&self, coord: u8, top: bool, color: u8) -> Result<()> {
         let position = midi_from_button(coord, top)
             .ok_or(LaunchpadError::InvalidPosition)?;
         self.write_sysex(&[0x0A, position, color])
@@ -157,7 +162,7 @@ impl LaunchpadMk2 {
     /// will be the same color. If the message is set to loop, it can be cancelled
     /// by sending an empty `scroll_text` command. String should only contain ASCII
     /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
-    pub fn scroll_text_raw(&mut self, color: u8, do_loop: bool, text: &str) -> Result<()> {
+    pub fn scroll_text_raw(&self, color: u8, do_loop: bool, text: &str) -> Result<()> {
         if !is_valid_color(&color) {
             return Err(LaunchpadError::InvalidRawColor)
         }
@@ -173,49 +178,49 @@ impl LaunchpadMk2 {
     /// Light all LEDs to the same RGB color.
     ///
     /// This is more expensive than `light_all_raw`.
-    pub fn light_all(&mut self, color: &RGBColor) -> Result<()> {
+    pub fn light_all(&self, color: &RGBColor) -> Result<()> {
         self.light_all_raw(nearest_palette(color))
     }
 
     /// Light a single LED to a RGB color.
     ///
     /// This is more expensive than `light_single_raw`.
-    pub fn light_single(&mut self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
+    pub fn light_single(&self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
         self.light_single_raw(x, y, nearest_palette(color))
     }
 
     /// Set a single LED to flash a RGB color.
     ///
     /// This is more expensive than `flash_single_raw`.
-    pub fn flash_single(&mut self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
+    pub fn flash_single(&self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
         self.flash_single_raw(x, y, nearest_palette(color))
     }
 
     /// Set a single LED to pulse a RGB color.
     ///
     /// This is more expensive than `pulse_single_raw`.
-    pub fn pulse_single(&mut self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
+    pub fn pulse_single(&self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
         self.pulse_single_raw(x, y, nearest_palette(color))
     }
 
     /// Light a row of LEDs to the same RGB color.
     ///
     /// This is more expensive than `light_row_raw`.
-    pub fn light_row(&mut self, y: u8, color: &RGBColor) -> Result<()> {
+    pub fn light_row(&self, y: u8, color: &RGBColor) -> Result<()> {
         self.light_row_raw(y, nearest_palette(color))
     }
 
     /// Light a column of LEDs to the same RGB color.
     ///
     /// This is more expensive than `light_column_raw`.
-    pub fn light_column(&mut self, x: u8, color: &RGBColor) -> Result<()> {
+    pub fn light_column(&self, x: u8, color: &RGBColor) -> Result<()> {
         self.light_column_raw(x, nearest_palette(color))
     }
 
     /// Light a button LED to aRGB color.
     ///
     /// This is more expensive than `light_button_raw`
-    pub fn light_button(&mut self, coord: u8, top: bool, color: &RGBColor) -> Result<()> {
+    pub fn light_button(&self, coord: u8, top: bool, color: &RGBColor) -> Result<()> {
         self.light_button_raw(coord, top, nearest_palette(color))
     }
 
@@ -225,7 +230,7 @@ impl LaunchpadMk2 {
     /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
     ///
     /// This is more expensive than `scroll_text_raw`.
-    pub fn scroll_text(&mut self, color: &RGBColor, do_loop: bool, text: &str) -> Result<()> {
+    pub fn scroll_text(&self, color: &RGBColor, do_loop: bool, text: &str) -> Result<()> {
         self.scroll_text_raw(nearest_palette(color), do_loop,  text)
     }
 
@@ -257,7 +262,7 @@ impl LaunchpadMk2 {
     }
 
     /// Write a SysEx message with the Launchpad Mk2 header
-    fn write_sysex(&mut self, data: &[u8]) -> Result<()> {
+    fn write_sysex(&self, data: &[u8]) -> Result<()> {
         let mut msg = vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18]; // header
         msg.extend_from_slice(data);
         msg.push(0xF7); // terminate
