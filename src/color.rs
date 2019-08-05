@@ -1,7 +1,4 @@
-use palette::{Lab, LinSrgb, Hsv, Srgb, Hsl};
-use palette::encoding::Linear;
-use palette::rgb::Rgb;
-use palette::chromatic_adaptation::AdaptInto;
+use palette::{Lab, LinSrgb, Hsv};
 
 #[derive(Debug)]
 pub struct RGBColor(pub u8, pub u8, pub u8);

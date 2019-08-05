@@ -2,7 +2,7 @@
 //!
 //! For now, only Launchpad Mark 2 devices are supported.
 
-use portmidi::{InputPort, MidiEvent, OutputPort, PortMidi};
+use portmidi::{InputPort, OutputPort, PortMidi};
 
 use crate::color::nearest_palette;
 use crate::RGBColor;
@@ -14,7 +14,6 @@ use crate::RGBColor;
 pub struct LaunchpadMk2 {
     input_port: InputPort,
     output_port: OutputPort,
-    midi: Option<PortMidi>,
 }
 
 // TODO
@@ -49,11 +48,10 @@ pub const SCROLL_FASTEST: &'static str = "\u{07}";
 impl LaunchpadMk2 {
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names
-    pub fn autodetect() -> LaunchpadMk2 {
-        let midi = PortMidi::new().expect("Failed to open PortMidi Instance!");
-        let mut launchpad = Self::autodetect_from(&midi);
-        launchpad.midi = Some(midi);
-        launchpad
+    pub fn autodetect() -> Result<LaunchpadMk2> {
+        let midi = PortMidi::new()
+            .map_err(|err| LaunchpadError::Midi(err))?;
+        Ok(Self::autodetect_from(&midi))
     }
 
     /// Attempt to find the first Launchpad Mark 2 by scanning
@@ -100,7 +98,6 @@ impl LaunchpadMk2 {
         LaunchpadMk2 {
             input_port: input,
             output_port: output,
-            midi: None, // TODO what?
         }
     }
 
@@ -135,7 +132,7 @@ impl LaunchpadMk2 {
 
     /// Light a column of LEDs to the same color.
     pub fn light_column_raw(&mut self, x: u8, color: u8) -> Result<()> {
-        if !is_valid_coord(x) {
+        if !is_valid_coord(&x) {
             return Err(LaunchpadError::InvalidPosition);
         }
         self.write_sysex(&[0x0C, x, color])
@@ -143,7 +140,7 @@ impl LaunchpadMk2 {
 
     /// Light a row of LEDs to the same color.
     pub fn light_row_raw(&mut self, y: u8, color: u8) -> Result<()> {
-        if !is_valid_coord(y) {
+        if !is_valid_coord(&y) {
             return Err(LaunchpadError::InvalidPosition);
         }
         self.write_sysex(&[0x0D, y, color])
@@ -161,7 +158,7 @@ impl LaunchpadMk2 {
     /// by sending an empty `scroll_text` command. String should only contain ASCII
     /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
     pub fn scroll_text_raw(&mut self, color: u8, do_loop: bool, text: &str) -> Result<()> {
-        if !is_valid_color(color) {
+        if !is_valid_color(&color) {
             return Err(LaunchpadError::InvalidRawColor)
         }
 
@@ -232,32 +229,31 @@ impl LaunchpadMk2 {
         self.scroll_text_raw(nearest_palette(color), do_loop,  text)
     }
 
-    pub fn poll(&self) -> Result<Option<Vec<Event>>> {
+    /// Poll the device for MIDI events
+    pub fn poll(&self) -> Result<Vec<Event>> {
         self.input_port.poll().or_else(|err| Err(LaunchpadError::Midi(err)))?;
         let events = self.input_port.read_n(1024).or_else(|err| Err(LaunchpadError::Midi(err)))?;
         Ok(events.map(|events| {
             events.iter().filter_map(|evt| {
-                let on = evt.message.data2 == 127;
-
-                let value = evt.message.data1;
+                let value = evt.message.data1; // note
 
                 // not magic
                 let location = match value {
-                    19 | 29 | 39 | 49 | 59 | 69 | 79 | 89 => Some(Location::Button(value / 10 - 1, false)),
+                    19 | 29 | 39 | 49 | 59 | 69 | 79 | 89 => Some(Location::Button(value / 10 - 1, false)), // side
                     11..=88 => Some(Location::Pad(value % 10 - 1, value / 10 - 1)),
-                    104..=111 => Some(Location::Button(value - 104, true)),
+                    104..=111 => Some(Location::Button(value - 104, true)), // top
                     _ => None,
                 };
 
                 location.map(|loc| {
-                    if evt.message.data2 == 0 {
+                    if evt.message.data2 == 0 { // data2 => velocity
                         Event::Release(loc)
                     } else {
                         Event::Press(loc)
                     }
                 }) // if location was none, this will be quietly filtered out
             }).collect()
-        }))
+        }).unwrap_or_default())
     }
 
     /// Write a SysEx message with the Launchpad Mk2 header
@@ -271,24 +267,18 @@ impl LaunchpadMk2 {
     }
 }
 
-fn coords_from_midi(midi: u8) -> Option<(u8, u8)> {
-    let val = midi - 11; // align the minimum to zero
-    let x = val % 10;
-    let y = (val - x) / 10;
-
-    if is_valid_coords((x, y)) { Some((x, y) ) } else { None }
-}
-
+/// MIDI note value from Launchpad pad
 fn midi_from_coords(coords: (u8, u8)) -> Option<u8> {
-    if is_valid_coords(coords) {
+    if is_valid_coords(&coords) {
         Some(11 + coords.0 + coords.1 * 10)
     } else {
         None
     }
 }
 
+/// MIDI note value from Launchpad button
 fn midi_from_button(coord: u8, top: bool) -> Option<u8> {
-    if is_valid_coord(coord) {
+    if is_valid_coord(&coord) {
         if top {
             Some(104 + coord)
         } else {
@@ -299,18 +289,16 @@ fn midi_from_button(coord: u8, top: bool) -> Option<u8> {
     }
 }
 
-/// Make sure the palette color is valid
-fn is_valid_color(raw_color: u8) -> bool {
-    raw_color < 128
+fn is_valid_color(raw_color: &u8) -> bool {
+    raw_color < &128
 }
 
-/// Make sure the column is valid
-fn is_valid_coord(pos: u8) -> bool {
-    pos < 8
+fn is_valid_coord(pos: &u8) -> bool {
+    pos < &8
 }
 
-fn is_valid_coords(coords: (u8, u8)) -> bool {
-    is_valid_coord(coords.0) && is_valid_coord(coords.1)
+fn is_valid_coords(coords: &(u8, u8)) -> bool {
+    is_valid_coord(&coords.0) && is_valid_coord(&coords.1)
 }
 
 //////////////////////////////////////////////////////////////////
