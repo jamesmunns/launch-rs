@@ -24,7 +24,7 @@ pub enum LaunchpadError {
     Midi(portmidi::Error),
 }
 
-mod event {
+pub mod event {
     #[derive(Debug)]
     pub enum Event {
         Press(Location),
@@ -63,7 +63,8 @@ impl LaunchpadMk2 {
     /// available MIDI ports with matching names. Bring your own
     /// PortMidi.
     pub fn autodetect_from(midi: &PortMidi) -> Result<LaunchpadMk2> {
-        let devices = midi.devices().expect("Failed to retrieve MIDI devices!");
+        let devices = midi.devices()
+            .map_err(|err| LaunchpadError::Midi(err))?;
 
         let mut input: Option<i32> = None;
         let mut output: Option<i32> = None;
@@ -91,9 +92,9 @@ impl LaunchpadMk2 {
         let output_port = output.expect("No Launchpad MK2 output found!");
 
         let input_device = midi.device(input_port)
-            .expect("No Launchpad input found");
+            .map_err(|err| LaunchpadError::Midi(err))?;
         let output_device = midi.device(output_port)
-            .expect("No Launchpad output found");
+            .map_err(|err| LaunchpadError::Midi(err))?;
 
         let input = midi.input_port(input_device, 1024)
             .map_err(|err| LaunchpadError::Midi(err))?;
