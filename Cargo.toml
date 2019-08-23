@@ -10,5 +10,6 @@ documentation = "https://docs.rs/launchpad"
 edition = "2018"
 
 [dependencies]
+#midir = "0.5.0" # TODO
 palette = "0.4"
 portmidi = "0.2.4"

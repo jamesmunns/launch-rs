@@ -4,8 +4,9 @@
 
 use portmidi::{InputPort, OutputPort, PortMidi};
 
-use crate::color::nearest_palette;
-use crate::RGBColor;
+use crate::{nearest_palette, RGBColor, Launchpad};
+
+use super::Result;
 
 /// A Launchpad Mark 2 Device. This library requires the PortMidi device
 /// used to create the launchpad to have the same lifetime. If we create the
@@ -14,14 +15,6 @@ use crate::RGBColor;
 pub struct LaunchpadMk2 {
     input_port: InputPort,
     output_port: OutputPort,
-}
-
-// TODO
-#[derive(Debug)]
-pub enum LaunchpadError {
-    InvalidRawColor,
-    InvalidPosition,
-    Midi(portmidi::Error),
 }
 
 pub mod event {
@@ -39,8 +32,6 @@ pub mod event {
 }
 
 use event::*;
-
-type Result<T> = std::result::Result<T, LaunchpadError>;
 
 pub const SCROLL_SLOWEST: &'static str = "\u{01}";
 pub const SCROLL_SLOWER: &'static str = "\u{02}";
@@ -107,138 +98,10 @@ impl LaunchpadMk2 {
         })
     }
 
-    // === RAW === //
-
-    /// Light all LEDs to the same color
-    pub fn light_all_raw(&self, raw_color: u8) -> Result<()> {
-        // Message cannot be repeated.
-        self.write_sysex(&[0x0E, raw_color])
-    }
-
-    /// Light a single LED to a color.
-    pub fn light_single_raw(&self, x: u8, y: u8, color: u8) -> Result<()> {
-        let pos = midi_from_coords((x, y))
-            .ok_or(LaunchpadError::InvalidPosition)?;
-        self.write_sysex(&[0x0A, pos, color])
-    }
-
-    /// Set a single LED to flash to a color.
-    pub fn flash_single_raw(&self, x: u8, y: u8, color: u8) -> Result<()> {
-        let pos = midi_from_coords((x, y))
-            .ok_or(LaunchpadError::InvalidPosition)?;
-        self.write_sysex(&[0x23, 0, pos, color])
-    }
-
-    /// Set a single LED to pulse to a color.
-    pub fn pulse_single_raw(&self, x: u8, y: u8, color: u8) -> Result<()> {
-        let pos = midi_from_coords((x, y))
-            .ok_or(LaunchpadError::InvalidPosition)?;
-        self.write_sysex(&[0x28, 0, pos, color])
-    }
-
-    /// Light a column of LEDs to the same color.
-    pub fn light_column_raw(&self, x: u8, color: u8) -> Result<()> {
-        if !is_valid_coord(&x) {
-            return Err(LaunchpadError::InvalidPosition);
-        }
-        self.write_sysex(&[0x0C, x, color])
-    }
-
-    /// Light a row of LEDs to the same color.
-    pub fn light_row_raw(&self, y: u8, color: u8) -> Result<()> {
-        if !is_valid_coord(&y) {
-            return Err(LaunchpadError::InvalidPosition);
-        }
-        self.write_sysex(&[0x0D, y, color])
-    }
-
-    /// Light a button LED to a color.
-    pub fn light_button_raw(&self, coord: u8, top: bool, color: u8) -> Result<()> {
-        let position = midi_from_button(coord, top)
-            .ok_or(LaunchpadError::InvalidPosition)?;
-        self.write_sysex(&[0x0A, position, color])
-    }
-
-    /// Begin scrolling a message. The screen will be blanked, and the letters
-    /// will be the same color. If the message is set to loop, it can be cancelled
-    /// by sending an empty `scroll_text` command. String should only contain ASCII
-    /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
-    pub fn scroll_text_raw(&self, color: u8, do_loop: bool, text: &str) -> Result<()> {
-        if !is_valid_color(&color) {
-            return Err(LaunchpadError::InvalidRawColor)
-        }
-
-        let mut msg: Vec<u8> = vec![0x14, color, do_loop as u8];
-        msg.extend_from_slice(text.as_bytes());
-
-        self.write_sysex(&msg)
-    }
-
-    // === RGB === //
-
-    /// Light all LEDs to the same RGB color.
-    ///
-    /// This is more expensive than `light_all_raw`.
-    pub fn light_all(&self, color: &RGBColor) -> Result<()> {
-        self.light_all_raw(nearest_palette(color))
-    }
-
-    /// Light a single LED to a RGB color.
-    ///
-    /// This is more expensive than `light_single_raw`.
-    pub fn light_single(&self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
-        self.light_single_raw(x, y, nearest_palette(color))
-    }
-
-    /// Set a single LED to flash a RGB color.
-    ///
-    /// This is more expensive than `flash_single_raw`.
-    pub fn flash_single(&self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
-        self.flash_single_raw(x, y, nearest_palette(color))
-    }
-
-    /// Set a single LED to pulse a RGB color.
-    ///
-    /// This is more expensive than `pulse_single_raw`.
-    pub fn pulse_single(&self, x: u8, y: u8, color: &RGBColor) -> Result<()> {
-        self.pulse_single_raw(x, y, nearest_palette(color))
-    }
-
-    /// Light a row of LEDs to the same RGB color.
-    ///
-    /// This is more expensive than `light_row_raw`.
-    pub fn light_row(&self, y: u8, color: &RGBColor) -> Result<()> {
-        self.light_row_raw(y, nearest_palette(color))
-    }
-
-    /// Light a column of LEDs to the same RGB color.
-    ///
-    /// This is more expensive than `light_column_raw`.
-    pub fn light_column(&self, x: u8, color: &RGBColor) -> Result<()> {
-        self.light_column_raw(x, nearest_palette(color))
-    }
-
-    /// Light a button LED to aRGB color.
-    ///
-    /// This is more expensive than `light_button_raw`
-    pub fn light_button(&self, coord: u8, top: bool, color: &RGBColor) -> Result<()> {
-        self.light_button_raw(coord, top, nearest_palette(color))
-    }
-
-    /// Begin scrolling a message. The screen will be blanked, and the letters
-    /// will be the same RGB color. If the message is set to loop, it can be cancelled
-    /// by sending an empty `scroll_text` command. String should only contain ASCII
-    /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
-    ///
-    /// This is more expensive than `scroll_text_raw`.
-    pub fn scroll_text(&self, color: &RGBColor, do_loop: bool, text: &str) -> Result<()> {
-        self.scroll_text_raw(nearest_palette(color), do_loop,  text)
-    }
-
     /// Poll the device for MIDI events
     pub fn poll(&self) -> Result<Vec<Event>> {
         self.input_port.poll().or_else(|err| Err(LaunchpadError::Midi(err)))?;
-        let events = self.input_port.read_n(1024).or_else(|err| Err(LaunchpadError::Midi(err)))?;
+        let events = self.input_port.read_n(1024).or_else(|err| Err(err))?;
         Ok(events.map(|events| {
             events.iter().filter_map(|evt| {
                 let value = evt.message.data1; // note
@@ -273,25 +136,64 @@ impl LaunchpadMk2 {
     }
 }
 
-/// MIDI note value from Launchpad pad
-fn midi_from_coords(coords: (u8, u8)) -> Option<u8> {
-    if is_valid_coords(&coords) {
-        Some(11 + coords.0 + coords.1 * 10)
-    } else {
-        None
+impl Launchpad for LaunchpadMk2 {
+    /// Light all LEDs to the same color
+    fn light_all(&self, raw_color: u8) -> Result<()> {
+        self.write_sysex(&[0x0E, raw_color])
+    }
+
+    /// Light a single LED to a color.
+    fn light_single(&self, raw_position: u8, color: u8) -> Result<()> {
+        self.write_sysex(&[0x0A, pos, color])
+    }
+
+    /// Set a single LED to flash to a color.
+    fn flash_single(&self, raw_position: u8, color: u8) -> Result<()> {
+        self.write_sysex(&[0x23, 0, pos, color])
+    }
+
+    /// Set a single LED to pulse to a color.
+    fn pulse_single(&self, raw_position: u8, color: u8) -> Result<()> {
+        self.write_sysex(&[0x28, 0, pos, color])
+    }
+
+    /// Light a row of LEDs to the same color.
+    fn light_row(&self, y: u8, color: u8) -> Result<()> {
+        self.write_sysex(&[0x0D, y, color])
+    }
+
+    /// Light a column of LEDs to the same color.
+    fn light_column(&self, x: u8, color: u8) -> Result<()> {
+        self.write_sysex(&[0x0C, x, color])
+    }
+
+    /// Begin scrolling a message. The screen will be blanked, and the letters
+    /// will be the same color. If the message is set to loop, it can be cancelled
+    /// by sending an empty `scroll_text` command. String should only contain ASCII
+    /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
+    fn scroll_text(&self, color: u8, do_loop: bool, text: &str) -> Result<()> {
+        let mut msg: Vec<u8> = vec![0x14, color, do_loop as u8];
+        msg.extend_from_slice(text.as_bytes());
+
+        self.write_sysex(&msg)
     }
 }
 
+/// MIDI note value from Launchpad pad
+pub fn pad_position(coords: (u8, u8)) -> u8 {
+    assert!(is_valid_coords(&coords));
+
+    11 + coords.0 + coords.1 * 10
+}
+
 /// MIDI note value from Launchpad button
-fn midi_from_button(coord: u8, top: bool) -> Option<u8> {
-    if is_valid_coord(&coord) {
-        if top {
-            Some(104 + coord)
-        } else {
-            Some(10 * coord + 19)
-        }
+pub fn button_position(coord: u8, top: bool) -> u8 {
+    assert!(is_valid_coord(&coord));
+
+    if top {
+        104 + coord
     } else {
-        None
+        10 * coord + 19
     }
 }
 

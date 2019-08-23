@@ -57,7 +57,7 @@ TODO: add up-to-date example
 
 ## References
 * [Palette Table Information](http://launchpaddr.com/mk2palette/)
-* [Launchpad Mk2 Programmers Reference Manual](https://resource.novationmusic.com/sites/default/files/novation/downloads/10598/launchpad-pro-programmers-reference-guide_0.pdf) (PDF warning)
+* [Launchpad Mk2 Programmers Reference Manual](https://d2xhy469pqj8rc.cloudfront.net/sites/default/files/novation/downloads/10529/launchpad-mk2-programmers-reference-guide-v1-02.pdf) (PDF warning)
 
 ## License
 
