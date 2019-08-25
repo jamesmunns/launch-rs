@@ -19,11 +19,10 @@ impl RGBColor {
 
 fn rgb_to_lab(color: &RGBColor) -> Lab {
     let to_float = |i: u8| i as f32 / 255f32;
-    LinSrgb::new(to_float(color.0), to_float(color.1), to_float(color.2))
-        .into()
+    LinSrgb::new(to_float(color.0), to_float(color.1), to_float(color.2)).into()
 }
 
-/// Use the 3d nearest neighbor to determine an approximation for RGB colors
+/// Use the 3d nearest neighbor to determine an approximation for RGB colors.
 pub fn nearest_palette(color: &RGBColor) -> u8 {
     let mut furthest_val = 0usize;
     let mut furthest_dist = 3f32 * (255f32).powi(2) + 1f32; // maximum in all channels + 1
@@ -33,7 +32,7 @@ pub fn nearest_palette(color: &RGBColor) -> u8 {
     // calculate the LAB distance (delta e)
 	// learn more: https://zschuessler.github.io/DeltaE/learn/
 
-    for (i, color) in COLOR_PALETTE.iter().enumerate() {
+    for (i, color) in RGB_PALETTE.iter().enumerate() {
         // TODO palette LAB colors could be hardcoded...
         let color_b = rgb_to_lab(color);
 
@@ -51,7 +50,7 @@ pub fn nearest_palette(color: &RGBColor) -> u8 {
 }
 
 /// Palette table information from http://launchpaddr.com/mk2palette/
-pub const COLOR_PALETTE: [RGBColor; 128] = [
+pub const RGB_PALETTE: [RGBColor; 128] = [
     // 0..64
     RGBColor(0x00, 0x00, 0x00),
     RGBColor(0x1c, 0x1c, 0x1c),
