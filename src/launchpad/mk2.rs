@@ -2,28 +2,33 @@
 //!
 //! For now, only Launchpad Mark 2 devices are supported.
 
-use portmidi::{InputPort, OutputPort, PortMidi};
+use midir::{Ignore, MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection, SendError};
+
+use std::sync::{Arc, Mutex};
+
+// use portmidi::{InputPort, OutputPort, PortMidi};
 
 use crate::Launchpad;
 
-use super::Result;
+pub const DEVICE_NAME: &'static str = "Launchpad MK2";
 
 /// A Launchpad Mark 2 Device. This library requires the PortMidi device
 /// used to create the launchpad to have the same lifetime. If we create the
 /// PortMidi device ourselves, hold it. Otherwise, trust the implementer to
 /// not destroy it (or further calls will fail (sometimes silently?))
 pub struct LaunchpadMk2 {
-    input_port: InputPort,
-    output_port: OutputPort,
+    midi_input: MidiInputConnection<Arc<Mutex<Vec<Mk2Event>>>>,
+    midi_output: MidiOutputConnection,
+    events: Arc<Mutex<Vec<Mk2Event>>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Mk2Event {
     Press(Location),
     Release(Location),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Location {
     Button(u8, bool),
     Pad(u8, u8),
@@ -37,143 +42,129 @@ pub const SCROLL_FAST: &'static str = "\u{05}";
 pub const SCROLL_FASTER: &'static str = "\u{06}";
 pub const SCROLL_FASTEST: &'static str = "\u{07}";
 
+pub type Result<T> = std::result::Result<T, SendError>;
+
 impl LaunchpadMk2 {
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names
-    pub fn autodetect() -> Result<LaunchpadMk2> {
-        let midi = PortMidi::new()?;
-        Ok(Self::autodetect_from(&midi)?)
-    }
+    pub fn autodetect() -> std::result::Result<LaunchpadMk2, midir::InitError> {
+		let mut input = MidiInput::new(DEVICE_NAME)?;
+        let output = MidiOutput::new(DEVICE_NAME)?;
 
-    /// Attempt to find the first Launchpad Mark 2 by scanning
-    /// available MIDI ports with matching names. Bring your own
-    /// PortMidi.
-    pub fn autodetect_from(midi: &PortMidi) -> Result<LaunchpadMk2> {
-        let devices = midi.devices()?;
+        input.ignore(Ignore::None);
 
-        let mut input: Option<i32> = None;
-        let mut output: Option<i32> = None;
+        let events = Arc::new(Mutex::new(Vec::new()));
 
-        for d in devices {
-            if !d.name().contains("Launchpad MK2") {
-                continue;
+        // TODO handle errors
+        let input = input.connect(1, "launchpad-rs-in", |_timestamp, message, data| {
+            if let Some(event) = parse_message(message) {
+                let mut events = data.lock().unwrap();
+                events.push(event);
             }
-
-            if input.is_none() && d.is_input() {
-                input = Some(d.id() as i32);
-            }
-
-            if output.is_none() && d.is_output() {
-                output = Some(d.id() as i32);
-            }
-
-            // TODO use more idiomatic control flow?
-            if input.is_some() && output.is_some() {
-                break;
-            }
-        }
-
-        let input_port = input.expect("No Launchpad MK2 input found!");
-        let output_port = output.expect("No Launchpad MK2 output found!");
-
-        let input_device = midi.device(input_port)?;
-        let output_device = midi.device(output_port)?;
-
-        let input = midi.input_port(input_device, 1024)?;
-        let output = midi.output_port(output_device, 1024)?;
+        }, events.clone()).unwrap();
+        let output = output.connect(1, "launchpad-rs-out").unwrap();
 
         Ok(LaunchpadMk2 {
-            input_port: input,
-            output_port: output,
+            midi_input: input,
+            midi_output: output,
+            events,
         })
     }
 
     /// Write a SysEx message with the Launchpad Mk2 header
-    fn write_sysex(&self, data: &[u8]) -> Result<()> {
+    fn write_sysex(&mut self, data: &[u8]) -> Result<()> {
         let mut msg = vec![0xF0, 0x00, 0x20, 0x29, 0x02, 0x18]; // header
         msg.extend_from_slice(data);
         msg.push(0xF7); // terminate
 
-        self.output_port.write_sysex(0, &msg)
+        self.midi_output.send(&msg)
     }
 }
 
 impl Launchpad<Mk2Event> for LaunchpadMk2 {
     /// Light all LEDs to the same color
-    fn light_all(&self, raw_color: u8) -> Result<()> {
+    fn light_all(&mut self, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0E, raw_color])
     }
 
     /// Light a single LED to a color.
-    fn light_single(&self, raw_position: u8, raw_color: u8) -> Result<()> {
+    fn light_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0A, raw_position, raw_color])
     }
 
     /// Set a single LED to flash to a color.
-    fn flash_single(&self, raw_position: u8, raw_color: u8) -> Result<()> {
+    fn flash_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x23, 0, raw_position, raw_color])
     }
 
     /// Set a single LED to pulse to a color.
-    fn pulse_single(&self, raw_position: u8, raw_color: u8) -> Result<()> {
+    fn pulse_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x28, 0, raw_position, raw_color])
     }
 
     /// Light a row of LEDs to the same color.
-    fn light_row(&self, y: u8, raw_color: u8) -> Result<()> {
+    fn light_row(&mut self, y: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0D, y, raw_color])
     }
 
     /// Light a column of LEDs to the same color.
-    fn light_column(&self, x: u8, raw_color: u8) -> Result<()> {
+    fn light_column(&mut self, x: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0C, x, raw_color])
+    }
+
+    fn light_single_rgb(&mut self, raw_position: u8, red: u8, green: u8, blue: u8) -> Result<()> {
+        self.write_sysex(&[0x0B, raw_position, red, green, blue])
     }
 
     /// Begin scrolling a message. The screen will be blanked, and the letters
     /// will be the same color. If the message is set to loop, it can be cancelled
     /// by sending an empty `scroll_text` command. String should only contain ASCII
     /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
-    fn scroll_text(&self, do_loop: bool, text: &str, raw_color: u8) -> Result<()> {
+    fn scroll_text(&mut self, do_loop: bool, text: &str, raw_color: u8) -> Result<()> {
         let mut msg: Vec<u8> = vec![0x14, raw_color, do_loop as u8];
         msg.extend_from_slice(text.as_bytes());
 
         self.write_sysex(&msg)
     }
 
-    fn poll(&self) -> Result<Vec<Mk2Event>> {
-        self.input_port.poll()?;
-        let events = self.input_port.read_n(1024).or_else(|err| Err(err))?;
-        Ok(events.map(|events| {
-            events.iter().filter_map(|evt| {
-                let value = evt.message.data1; // note
+    fn poll(&mut self) -> Vec<Mk2Event> {
+        let mut events = self.events.lock().unwrap();
+        let events_clone = events.clone();
+        events.clear();
+        events_clone
+    }
+}
 
-                // not magic
-                let location = match value {
-                    19 | 29 | 39 | 49 | 59 | 69 | 79 | 89 => Some(Location::Button(value / 10 - 1, false)), // side
-                    11..=88 => Some(Location::Pad(value % 10 - 1, value / 10 - 1)),
-                    104..=111 => Some(Location::Button(value - 104, true)), // top
-                    _ => None,
-                };
-
-                location.map(|loc| {
-                    if evt.message.data2 == 0 { // data2 => velocity
-                        Mk2Event::Release(loc)
-                    } else {
-                        Mk2Event::Press(loc)
-                    }
-                }) // if location was none, this will be quietly filtered out
-            }).collect()
-        }).unwrap_or_default())
+fn parse_message(message: &[u8]) -> Option<Mk2Event> {
+    if message.len() < 3 {
+        return None;
     }
 
-    // TODO more features
+    let value = message[1];
+    let velocity = message[2];
+
+    // not magic
+    let location = match value {
+        19 | 29 | 39 | 49 | 59 | 69 | 79 | 89 => Some(Location::Button(value / 10 - 1, false)), // side
+        11..=88 => Some(Location::Pad(value % 10 - 1, value / 10 - 1)),
+        104..=111 => Some(Location::Button(value - 104, true)), // top
+        _ => None,
+    };
+
+    location.map(|loc| {
+        if velocity == 0 {
+            Mk2Event::Release(loc)
+        } else {
+            Mk2Event::Press(loc)
+        }
+    })
 }
 
 /// MIDI note value from Launchpad pad
-pub fn pad_position(coords: (u8, u8)) -> u8 {
-    assert!(is_valid_coords(&coords));
+pub fn pad_position(x: u8, y: u8) -> u8 {
+    assert!(is_valid_coord(&x) && is_valid_coord(&y));
 
-    11 + coords.0 + coords.1 * 10
+    11 + x + y * 10
 }
 
 /// MIDI note value from Launchpad button
@@ -193,10 +184,6 @@ fn is_valid_color(raw_color: &u8) -> bool {
 
 fn is_valid_coord(pos: &u8) -> bool {
     pos < &8
-}
-
-fn is_valid_coords(coords: &(u8, u8)) -> bool {
-    is_valid_coord(&coords.0) && is_valid_coord(&coords.1)
 }
 
 //////////////////////////////////////////////////////////////////
