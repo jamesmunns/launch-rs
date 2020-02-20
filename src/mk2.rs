@@ -6,18 +6,50 @@ use midir::{Ignore, MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnec
 
 use std::sync::{Arc, Mutex};
 
-// use portmidi::{InputPort, OutputPort, PortMidi};
-
-use crate::Launchpad;
-
 pub const DEVICE_NAME: &'static str = "Launchpad MK2";
 
-/// A Launchpad Mark 2 Device. This library requires the PortMidi device
-/// used to create the launchpad to have the same lifetime. If we create the
-/// PortMidi device ourselves, hold it. Otherwise, trust the implementer to
-/// not destroy it (or further calls will fail (sometimes silently?))
-pub struct LaunchpadMk2 {
-    midi_input: MidiInputConnection<Arc<Mutex<Vec<Mk2Event>>>>,
+pub trait LaunchpadMk2 {
+	/// Light all LEDs to the same color.
+	fn light_all(&mut self, color: u8) -> Result<()>;
+
+	/// Light a single LED to a color.
+	fn light_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()>;
+
+	/// Set a single LED to flash a color.
+	fn flash_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()>;
+
+	/// Set a sinle LED to pulse a color.
+	fn pulse_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()>;
+
+	/// Light a row of LEDs to the same color, including the side buttons.
+	fn light_row(&mut self, y: u8, raw_color: u8) -> Result<()>;
+
+	/// Light a column of LEDs to the same color, including the side buttons.
+	fn light_column(&mut self, x: u8, raw_color: u8) -> Result<()>;
+
+	fn light_single_rgb(&mut self, raw_position: u8, red: u8, green: u8, blue: u8) -> Result<()>;
+
+	/// Begin scrolling a message. The screen will be blanked, and the letters
+	/// will be the same color. If the message is set to loop, it can be cancelled
+	/// by sending an empty `scroll_text` command. String should only contain ASCII
+	/// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
+	fn scroll_text(&mut self, do_loop: bool, text: &str, raw_color: u8) -> Result<()>;
+
+    /// Select the current [Layout]. See device documentation.
+    fn select_layout(&mut self, layout: Layout) -> Result<()>;
+
+    /// Setup the nth fader (index 0-7). Read values (0-127) changed from [poll].
+    /// Faders will not be active unless the layout is also changed.
+    fn setup_fader(&mut self, index: u8, fader_type: FaderType, raw_color: u8, init_value: u8) -> Result<()>;
+
+	/// Poll the device for MIDI events.
+	fn poll(&mut self) -> Vec<Mk2Event>;
+}
+
+/// A Launchpad Mk2 device connected through MIDI.
+/// The connection will close on drop.
+pub struct MidiLaunchpadMk2 {
+    _midi_input: MidiInputConnection<Arc<Mutex<Vec<Mk2Event>>>>,
     midi_output: MidiOutputConnection,
     events: Arc<Mutex<Vec<Mk2Event>>>,
 }
@@ -26,6 +58,7 @@ pub struct LaunchpadMk2 {
 pub enum Mk2Event {
     Press(Location),
     Release(Location),
+    FaderUpdate(u8, u8),
 }
 
 #[derive(Clone, Debug)]
@@ -44,10 +77,10 @@ pub const SCROLL_FASTEST: &'static str = "\u{07}";
 
 pub type Result<T> = std::result::Result<T, SendError>;
 
-impl LaunchpadMk2 {
+impl MidiLaunchpadMk2 {
     /// Attempt to find the first Launchpad Mark 2 by scanning
     /// available MIDI ports with matching names
-    pub fn autodetect() -> std::result::Result<LaunchpadMk2, midir::InitError> {
+    pub fn autodetect() -> std::result::Result<MidiLaunchpadMk2, midir::InitError> {
 		let mut input = MidiInput::new(DEVICE_NAME)?;
         let output = MidiOutput::new(DEVICE_NAME)?;
 
@@ -64,8 +97,8 @@ impl LaunchpadMk2 {
         }, events.clone()).unwrap();
         let output = output.connect(1, "launchpad-rs-out").unwrap();
 
-        Ok(LaunchpadMk2 {
-            midi_input: input,
+        Ok(MidiLaunchpadMk2 {
+            _midi_input: input,
             midi_output: output,
             events,
         })
@@ -81,33 +114,27 @@ impl LaunchpadMk2 {
     }
 }
 
-impl Launchpad<Mk2Event> for LaunchpadMk2 {
-    /// Light all LEDs to the same color
+impl LaunchpadMk2 for MidiLaunchpadMk2 {
     fn light_all(&mut self, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0E, raw_color])
     }
 
-    /// Light a single LED to a color.
     fn light_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0A, raw_position, raw_color])
     }
 
-    /// Set a single LED to flash to a color.
     fn flash_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x23, 0, raw_position, raw_color])
     }
 
-    /// Set a single LED to pulse to a color.
     fn pulse_single(&mut self, raw_position: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x28, 0, raw_position, raw_color])
     }
 
-    /// Light a row of LEDs to the same color.
     fn light_row(&mut self, y: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0D, y, raw_color])
     }
 
-    /// Light a column of LEDs to the same color.
     fn light_column(&mut self, x: u8, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x0C, x, raw_color])
     }
@@ -116,10 +143,6 @@ impl Launchpad<Mk2Event> for LaunchpadMk2 {
         self.write_sysex(&[0x0B, raw_position, red, green, blue])
     }
 
-    /// Begin scrolling a message. The screen will be blanked, and the letters
-    /// will be the same color. If the message is set to loop, it can be cancelled
-    /// by sending an empty `scroll_text` command. String should only contain ASCII
-    /// characters, or the byte value of 1-7 to set the speed (`\u{01}` to `\u{07}`)
     fn scroll_text(&mut self, do_loop: bool, text: &str, raw_color: u8) -> Result<()> {
         let mut msg: Vec<u8> = vec![0x14, raw_color, do_loop as u8];
         msg.extend_from_slice(text.as_bytes());
@@ -132,6 +155,14 @@ impl Launchpad<Mk2Event> for LaunchpadMk2 {
         let events_clone = events.clone();
         events.clear();
         events_clone
+    }
+
+    fn select_layout(&mut self, layout: Layout) -> Result<()> {
+        self.write_sysex(&[0x22, layout.value()])
+    }
+
+    fn setup_fader(&mut self, index: u8, fader_type: FaderType, raw_color: u8, init_value: u8) -> Result<()> {
+        self.write_sysex(&[0x2B, index, fader_type.value(), raw_color, init_value])
     }
 }
 
@@ -178,86 +209,49 @@ pub fn button_position(coord: u8, top: bool) -> u8 {
     }
 }
 
-fn is_valid_color(raw_color: &u8) -> bool {
-    raw_color < &128
-}
-
 fn is_valid_coord(pos: &u8) -> bool {
     pos < &8
 }
 
-//////////////////////////////////////////////////////////////////
-// TODO ITEMS
-//////////////////////////////////////////////////////////////////
 
+#[derive(Debug)]
+pub enum Layout {
+    Session,
+    User1,
+    User2,
+    AbletonReserved,
+    Volume,
+    Pan
+}
 
-// pub fn device_inquiry() {
-//     // (240,126,127, 6, 1, 247)
-// }
+impl Layout {
+    fn value(&self) -> u8 {
+        use Layout::*;
+        match self {
+            Session => 0,
+            User1 => 1,
+            User2 => 2,
+            AbletonReserved => 3,
+            Volume => 4,
+            Pan => 5,
+        }
+    }
+}
 
-// #[derive(Debug)]
-// enum Layout {
-//     Session,
-//     User_1,
-//     User_2,
-//     Ableton_Reserved,
-//     Volume,
-//     Pan
-// }
+#[derive(Debug)]
+pub enum FaderType {
+    Volume,
+    Pan,
+}
 
-// // pg6
-// pub fn set_layout(layout: Layout) -> Result<()> {
-//     use Layout::*;
-//     let i = match layout {
-//         Session => 0u8,
-//         User_1 => 1u8,
-//         User_2 => 2u8,
-//         Ableton_Reserved => 3u8,
-//         Volume => 4u8,
-//         Pan => 5u8,
-//     };
-//     unimplemented!()
-// }
+impl FaderType {
+    fn value(&self) -> u8 {
+        use FaderType::*;
+        match self {
+            Volume => 0,
+            Pan => 1,
+        }
+    }
+}
 
-
-// pub fn flash_led(led: &ColorLed) {
-//     // F0h 00h 20h 29h 02h 18h 23h <LED> <Colour> F7h
-//     // Message can be repeated up to 80 times.
-//     flash_leds(&[led])
-// }
-
-// pub fn flash_leds(leds: &[&ColorLed]) {
-
-// }
-
-// pub fn pulse_led(led: &ColorLed) {
-//     // F0h 00h 20h 29h 02h 18h 28h <LED> <Colour> F7h
-//     // Message can be repeated up to 80 times.
-//     pulse_leds(&[led])
-// }
-
-// pub fn pulse_leds(leds: &[&ColorLed]) {
-
-// }
-
-// pub fn light_rgb(light: u8, red: u8, green: u8, blue: u8) {
-//     // F0h 00h 20h 29h 02h 18h 0Bh <LED>, <Red> <Green> <Blue> F7h
-//     // Message can be repeated up to 80 times.
-// }
-
-// pub fn start_vol_fader() {
-
-// }
-
-// pub fn start_pan_fader() {
-
-// }
-
-// pub fn start_fader(layout: u8, number: u8, color: Color, value: u8)
-// {
-
-// }
-
-// pub fn scroll_text(text: &[u8], loop: bool, color: Color) {
-
-// }
+// TODO device inquiry, version inquiry, and set to bootloader?

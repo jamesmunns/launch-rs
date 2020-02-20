@@ -1,8 +1,8 @@
 mod color;
-mod launchpad;
+mod mk2;
 
-pub use launchpad::*;
 pub use color::*;
+pub use mk2::*;
 
 #[cfg(test)]
 mod tests {

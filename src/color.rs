@@ -1,4 +1,4 @@
-use palette::{Lab, LinSrgb, Hsv};
+use palette::{Hsv, Lab, LinSrgb};
 
 #[derive(Debug)]
 pub struct RGBColor(pub u8, pub u8, pub u8);
@@ -30,7 +30,7 @@ pub fn nearest_palette(color: &RGBColor) -> u8 {
     let color_a = rgb_to_lab(color);
 
     // calculate the LAB distance (delta e)
-	// learn more: https://zschuessler.github.io/DeltaE/learn/
+    // learn more: https://zschuessler.github.io/DeltaE/learn/
 
     for (i, color) in RGB_PALETTE.iter().enumerate() {
         // TODO palette LAB colors could be hardcoded...
@@ -116,7 +116,6 @@ pub const RGB_PALETTE: [RGBColor; 128] = [
     RGBColor(0x9a, 0x35, 0x00),
     RGBColor(0x7a, 0x51, 0x01),
     RGBColor(0x3e, 0x65, 0x00),
-
     // 64..128
     RGBColor(0x01, 0x38, 0x00),
     RGBColor(0x00, 0x54, 0x32),
