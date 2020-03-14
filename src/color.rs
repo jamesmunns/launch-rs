@@ -8,6 +8,7 @@ impl RGBColor {
         RGBColor(red, green, blue)
     }
 
+    /// Calculate the nearest RGB color from HSV (each value from 0-1, with hue wrapping)
     pub fn from_hsv(h: f32, s: f32, v: f32) -> RGBColor {
         let rgb: LinSrgb = Hsv::new(h * 360f32, s, v).into();
 
@@ -15,38 +16,38 @@ impl RGBColor {
 
         RGBColor(to_int(rgb.red), to_int(rgb.green), to_int(rgb.blue))
     }
+
+    /// Use the 3D nearest neighbor to determine and approximation for the RGB color.
+    pub fn nearest_midi(&self) -> u8 {
+        let mut furthest_val = 0usize;
+        let mut furthest_dist = 3f32 * (255f32).powi(2) + 1f32; // maximum in all channels + 1
+
+        let color_a = rgb_to_lab(&self);
+
+        // calculate the LAB distance (delta e)
+        // learn more: https://zschuessler.github.io/DeltaE/learn/
+
+        for (i, color) in RGB_PALETTE.iter().enumerate() {
+            // TODO palette LAB colors could be hardcoded...
+            let color_b = rgb_to_lab(color);
+
+            let distance = (color_a.l - color_b.l).powi(2)
+                + (color_a.a - color_b.a).powi(2)
+                + (color_a.b - color_b.b).powi(2);
+
+            if distance < furthest_dist {
+                furthest_dist = distance;
+                furthest_val = i;
+            }
+        }
+
+        return furthest_val as u8;
+    }
 }
 
 fn rgb_to_lab(color: &RGBColor) -> Lab {
     let to_float = |i: u8| i as f32 / 255f32;
     LinSrgb::new(to_float(color.0), to_float(color.1), to_float(color.2)).into()
-}
-
-/// Use the 3d nearest neighbor to determine an approximation for RGB colors.
-pub fn nearest_palette(color: &RGBColor) -> u8 {
-    let mut furthest_val = 0usize;
-    let mut furthest_dist = 3f32 * (255f32).powi(2) + 1f32; // maximum in all channels + 1
-
-    let color_a = rgb_to_lab(color);
-
-    // calculate the LAB distance (delta e)
-    // learn more: https://zschuessler.github.io/DeltaE/learn/
-
-    for (i, color) in RGB_PALETTE.iter().enumerate() {
-        // TODO palette LAB colors could be hardcoded...
-        let color_b = rgb_to_lab(color);
-
-        let distance = (color_a.l - color_b.l).powi(2)
-            + (color_a.a - color_b.a).powi(2)
-            + (color_a.b - color_b.b).powi(2);
-
-        if distance < furthest_dist {
-            furthest_dist = distance;
-            furthest_val = i;
-        }
-    }
-
-    return furthest_val as u8;
 }
 
 /// Palette table information from http://launchpaddr.com/mk2palette/

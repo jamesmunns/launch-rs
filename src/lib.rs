@@ -1,8 +1,13 @@
 mod color;
-mod mk2;
 
 pub use color::*;
-pub use mk2::*;
+
+mod error;
+#[doc(inline)]
+pub use error::{Error, Result};
+
+#[cfg(feature = "mk2")]
+pub mod mk2;
 
 #[cfg(test)]
 mod tests {

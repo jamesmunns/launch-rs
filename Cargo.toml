@@ -12,3 +12,7 @@ edition = "2018"
 [dependencies]
 midir = "0.5.0"
 palette = "0.4"
+
+[features]
+default = ["mk2"]
+mk2 = []
