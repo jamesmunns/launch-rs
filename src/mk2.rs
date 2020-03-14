@@ -16,6 +16,9 @@ pub trait LaunchpadMk2 {
     /// Light a single LED to a color.
     fn light_single(&mut self, position: &Location, raw_color: u8) -> Result<()>;
 
+    /// Light up to 80 LEDs in a single MIDI message.
+    fn light_multi(&mut self, leds: Vec<(Location, u8)>) -> Result<()>;
+
     /// Set a single LED to flash a color.
     fn flash_single(&mut self, position: &Location, raw_color: u8) -> Result<()>;
 
@@ -28,7 +31,11 @@ pub trait LaunchpadMk2 {
     /// Light a column of LEDs to the same color, including the side buttons.
     fn light_column(&mut self, x: u8, raw_color: u8) -> Result<()>;
 
+    /// Light a single LED to an RGB color.
     fn light_single_rgb(&mut self, position: &Location, color: &RGBColor) -> Result<()>;
+
+    /// Light up to 80 LEDs in a single MIDI message with RGB.
+    fn light_multi_rgb(&mut self, leds: Vec<(Location, RGBColor)>) -> Result<()>;
 
     /// Begin scrolling a message. The screen will be blanked, and the letters
     /// will be the same color. If the message is set to loop, it can be cancelled
@@ -154,6 +161,18 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
         self.write_sysex(&[0x0A, position.midi_note()?, raw_color])
     }
 
+    fn light_multi(&mut self, leds: Vec<(Location, u8)>) -> Result<()> {
+        assert!(leds.len() <= 80); // TODO error?
+
+        let mut buffer = vec![0x0A];
+
+        for (pos, color) in leds {
+            buffer.extend_from_slice(&[pos.midi_note()?, color]);
+        }
+
+        self.write_sysex(&buffer)
+    }
+
     fn flash_single(&mut self, position: &Location, raw_color: u8) -> Result<()> {
         self.write_sysex(&[0x23, 0, position.midi_note()?, raw_color])
     }
@@ -174,6 +193,17 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
         self.write_sysex(&[0x0B, position.midi_note()?, color.0 / 4, color.1 / 4, color.2 / 4])
     }
 
+    fn light_multi_rgb(&mut self, leds: Vec<(Location, RGBColor)>) -> Result<()> {
+        assert!(leds.len() <= 80); // TODO error?
+
+        let mut buffer = vec![0x0B];
+
+        for (pos, color) in leds {
+            buffer.extend_from_slice(&[pos.midi_note()?, color.0 / 4, color.1 / 4, color.2 / 4]);
+        }
+
+        self.write_sysex(&buffer)
+    }
     fn scroll_text(&mut self, do_loop: bool, text: &str, raw_color: u8) -> Result<()> {
         let mut msg: Vec<u8> = vec![0x14, raw_color, do_loop as u8];
         msg.extend_from_slice(text.as_bytes());
