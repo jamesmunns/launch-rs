@@ -17,6 +17,7 @@ pub trait LaunchpadMk2 {
     fn light_single(&mut self, position: &Location, raw_color: u8) -> Result<()>;
 
     /// Light up to 80 LEDs in a single MIDI message.
+    /// Any LEDs beyond the 80th will not be affected, failing silently.
     fn light_multi(&mut self, leds: Vec<(Location, u8)>) -> Result<()>;
 
     /// Set a single LED to flash a color.
@@ -35,6 +36,7 @@ pub trait LaunchpadMk2 {
     fn light_single_rgb(&mut self, position: &Location, color: &RGBColor) -> Result<()>;
 
     /// Light up to 80 LEDs in a single MIDI message with RGB.
+    /// Any LEDs beyond the 80th will not be affected, failing silently.
     fn light_multi_rgb(&mut self, leds: Vec<(Location, RGBColor)>) -> Result<()>;
 
     /// Begin scrolling a message. The screen will be blanked, and the letters
@@ -162,8 +164,6 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
     }
 
     fn light_multi(&mut self, leds: Vec<(Location, u8)>) -> Result<()> {
-        assert!(leds.len() <= 80); // TODO error?
-
         let mut buffer = vec![0x0A];
 
         for (pos, color) in leds {
@@ -194,8 +194,6 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
     }
 
     fn light_multi_rgb(&mut self, leds: Vec<(Location, RGBColor)>) -> Result<()> {
-        assert!(leds.len() <= 80); // TODO error?
-
         let mut buffer = vec![0x0B];
 
         for (pos, color) in leds {
@@ -204,6 +202,7 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
 
         self.write_sysex(&buffer)
     }
+
     fn scroll_text(&mut self, do_loop: bool, text: &str, raw_color: u8) -> Result<()> {
         let mut msg: Vec<u8> = vec![0x14, raw_color, do_loop as u8];
         msg.extend_from_slice(text.as_bytes());
@@ -241,9 +240,9 @@ fn parse_message(message: &[u8]) -> Option<Event> {
     let location = match value {
         19 | 29 | 39 | 49 | 59 | 69 | 79 | 89 => {
             Some(Location::Button(value / 10 - 1, ButtonSide::Right))
-        } // side
-        11..=88 => Some(Location::Pad(value % 10 - 1, value / 10 - 1)),
-        104..=111 => Some(Location::Button(value - 104, ButtonSide::Top)), // top
+        } // right side button
+        11..=88 => Some(Location::Pad(value % 10 - 1, value / 10 - 1)), // pad
+        104..=111 => Some(Location::Button(value - 104, ButtonSide::Top)), // top button
         _ => None,
     };
 

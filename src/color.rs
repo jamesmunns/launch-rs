@@ -1,6 +1,6 @@
 use palette::{Hsv, Lab, LinSrgb};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct RGBColor(pub u8, pub u8, pub u8);
 
 impl RGBColor {

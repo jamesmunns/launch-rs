@@ -10,6 +10,21 @@ pub enum Error {
     InvalidLocation,
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Midi(err) => write!(f, "midi error: {}", err),
+            Self::InvalidLocation => write!(f, "invalid location"),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 impl From<InitError> for Error {
     fn from(err: InitError) -> Error {
         Error::Midi(Box::new(err))
@@ -31,20 +46,5 @@ impl<T: 'static> From<ConnectError<T>> for Error {
 impl From<SendError> for Error {
     fn from(err: SendError) -> Error {
         Error::Midi(Box::new(err))
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Midi(err) => write!(f, "midi error: {}", err),
-            Self::InvalidLocation => write!(f, "invalid location"),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
     }
 }
