@@ -20,6 +20,11 @@ On Ubuntu / Debian:
 apt-get install libportmidi-dev
 ```
 
+On Fedora:
+```sh
+dnf install portmidi-devel
+```
+
 Arch Linux:
 ```sh
 pacman -S portmidi
@@ -43,62 +48,16 @@ First, add `launchpad` to your Cargo.toml:
 
 ```toml
 [dependencies]
-launchpad = "0.1"
+launchpad = "2.0"
 ```
 
 Then, get started!
 
-```rust
-extern crate launchpad;
-
-use std::time::Duration;
-use std::thread;
-use launchpad::*;
-
-fn main() {
-    let mut lpad = LaunchpadMk2::guess();
-    let timeout = Duration::from_millis(1);
-
-    // Output
-    println!("Clear screen...");
-    lpad.light_all(0);
-
-    println!("Columns on!");
-    for i in 0..9 {
-        lpad.light_column(&ColorColumn {column: i, color: 5});
-        thread::sleep(Duration::from_millis(25));
-    }
-
-    thread::sleep(Duration::from_millis(500));
-    lpad.light_all(0);
-
-    let mut foo = 0;
-
-    // Input and Output
-    loop {
-        if let Some(events) = lpad.poll() {
-            for press in events {
-                if press.message.data2 == 127 {
-                    foo += 1;
-                    foo %= 128;
-                    lpad.pulse_single(&ColorLed {
-                        color: foo,
-                        position: press.message.data1,
-                    });
-                }
-            }
-        }
-
-        // there is no blocking receive method in PortMidi, therefore
-        // we have to sleep some time to prevent a busy-wait loop
-        thread::sleep(timeout);
-    }
-}
-```
+TODO: add up-to-date example
 
 ## References
 * [Palette Table Information](http://launchpaddr.com/mk2palette/)
-* [Launchpad Mk2 Programmers Reference Manual](https://global.novationmusic.com/sites/default/files/novation/downloads/10529/launchpad-mk2-programmers-reference-guide_0.pdf) (PDF warning)
+* [Launchpad Mk2 Programmers Reference Manual](https://d2xhy469pqj8rc.cloudfront.net/sites/default/files/novation/downloads/10529/launchpad-mk2-programmers-reference-guide-v1-02.pdf) (PDF warning)
 
 ## License
 
