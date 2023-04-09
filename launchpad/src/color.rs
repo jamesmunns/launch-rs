@@ -4,7 +4,7 @@ use palette::{encoding::Srgb, rgb::Rgb, FromColor, Hsv, Lab, LinSrgb};
 pub struct RGBColor(pub u8, pub u8, pub u8);
 
 impl RGBColor {
-    pub fn new(red: u8, green: u8, blue: u8) -> Self {
+    pub const fn new(red: u8, green: u8, blue: u8) -> Self {
         RGBColor(red, green, blue)
     }
 

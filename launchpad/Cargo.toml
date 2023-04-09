@@ -1,7 +1,7 @@
 [package]
 name = "launchpad"
 version = "1.0.0"
-authors = ["James Munns <james.munns@gmail.com>", "Cassaundra Smith <cass@cassaundra.io>"]
+authors = ["James Munns <james@onevariable.com>", "Cassaundra Smith <cass@cassaundra.io>"]
 description = "Rust libraries for the Novation Launchpad, using PortMidi bindings"
 license = "MIT"
 homepage = "https://github.com/jamesmunns/launch-rs"
