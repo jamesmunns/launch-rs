@@ -8,6 +8,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     Midi(Box<dyn std::error::Error>),
     InvalidLocation,
+    NoDevicesFound,
 }
 
 impl fmt::Display for Error {
@@ -15,6 +16,7 @@ impl fmt::Display for Error {
         match self {
             Self::Midi(err) => write!(f, "midi error: {}", err),
             Self::InvalidLocation => write!(f, "invalid location"),
+            Error::NoDevicesFound => write!(f, "No midi devices found"),
         }
     }
 }

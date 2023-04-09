@@ -51,7 +51,11 @@ pub trait LaunchpadMk2 {
     /// Setup the nth fader (index 0-7). Read values (0-127) changed from [poll].
     /// Faders will not be active unless the layout is also changed.
     fn setup_fader(
-        &mut self, index: u8, fader_type: FaderType, raw_color: u8, init_value: u8,
+        &mut self,
+        index: u8,
+        fader_type: FaderType,
+        raw_color: u8,
+        init_value: u8,
     ) -> Result<()>;
 
     /// Poll the device for MIDI events.
@@ -120,10 +124,23 @@ impl MidiLaunchpadMk2 {
 
         input.ignore(Ignore::None);
 
+        let in_port = input
+            .ports()
+            .drain(..)
+            .skip(1)
+            .next()
+            .ok_or(crate::Error::NoDevicesFound)?;
+        let out_port = output
+            .ports()
+            .drain(..)
+            .skip(1)
+            .next()
+            .ok_or(crate::Error::NoDevicesFound)?;
+
         let events = Arc::new(Mutex::new(Vec::new()));
 
         let input = input.connect(
-            1,
+            &in_port,
             "launchpad-rs-in",
             |_timestamp, message, data| {
                 if let Some(event) = parse_message(message) {
@@ -133,7 +150,7 @@ impl MidiLaunchpadMk2 {
             },
             events.clone(),
         )?;
-        let output = output.connect(1, "launchpad-rs-out")?;
+        let output = output.connect(&out_port, "launchpad-rs-out")?;
 
         Ok(MidiLaunchpadMk2 {
             _midi_input: input,
@@ -190,7 +207,13 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
     }
 
     fn light_single_rgb(&mut self, position: &Location, color: &RGBColor) -> Result<()> {
-        self.write_sysex(&[0x0B, position.midi_note()?, color.0 / 4, color.1 / 4, color.2 / 4])
+        self.write_sysex(&[
+            0x0B,
+            position.midi_note()?,
+            color.0 / 4,
+            color.1 / 4,
+            color.2 / 4,
+        ])
     }
 
     fn light_multi_rgb(&mut self, leds: Vec<(Location, RGBColor)>) -> Result<()> {
@@ -222,7 +245,11 @@ impl LaunchpadMk2 for MidiLaunchpadMk2 {
     }
 
     fn setup_fader(
-        &mut self, index: u8, fader_type: FaderType, raw_color: u8, init_value: u8,
+        &mut self,
+        index: u8,
+        fader_type: FaderType,
+        raw_color: u8,
+        init_value: u8,
     ) -> Result<()> {
         self.write_sysex(&[0x2B, index, fader_type.value(), raw_color, init_value])
     }

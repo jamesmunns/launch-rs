@@ -1,16 +1,18 @@
-use palette::{Hsv, Lab, LinSrgb};
+use palette::{encoding::Srgb, rgb::Rgb, FromColor, Hsv, Lab, LinSrgb};
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct RGBColor(pub u8, pub u8, pub u8);
 
 impl RGBColor {
-    pub fn new(red: u8, green: u8, blue: u8) -> Self {
+    pub const fn new(red: u8, green: u8, blue: u8) -> Self {
         RGBColor(red, green, blue)
     }
 
     /// Calculate the nearest RGB color from HSV (each value from 0-1, with hue wrapping)
     pub fn from_hsv(h: f32, s: f32, v: f32) -> RGBColor {
-        let rgb: LinSrgb = Hsv::new(h * 360f32, s, v).into();
+        let hsv: Hsv<Srgb, f32> = Hsv::new(h * 360f32, s, v);
+        let rgb: Rgb<Srgb, f32> = Rgb::from_color(hsv);
+        let rgb: LinSrgb = Rgb::from_color(rgb);
 
         let to_int = |f: f32| (f * 255f32) as u8;
 
@@ -47,7 +49,8 @@ impl RGBColor {
 
 fn rgb_to_lab(color: &RGBColor) -> Lab {
     let to_float = |i: u8| i as f32 / 255f32;
-    LinSrgb::new(to_float(color.0), to_float(color.1), to_float(color.2)).into()
+    let lsrgb = LinSrgb::new(to_float(color.0), to_float(color.1), to_float(color.2));
+    Lab::from_color(lsrgb)
 }
 
 /// Palette table information from http://launchpaddr.com/mk2palette/
