@@ -120,10 +120,13 @@ impl MidiLaunchpadMk2 {
 
         input.ignore(Ignore::None);
 
+        let in_port = input.ports().drain(..).next().ok_or(crate::Error::NoDevicesFound)?;
+        let out_port = output.ports().drain(..).next().ok_or(crate::Error::NoDevicesFound)?;
+
         let events = Arc::new(Mutex::new(Vec::new()));
 
         let input = input.connect(
-            1,
+            &in_port,
             "launchpad-rs-in",
             |_timestamp, message, data| {
                 if let Some(event) = parse_message(message) {
@@ -133,7 +136,7 @@ impl MidiLaunchpadMk2 {
             },
             events.clone(),
         )?;
-        let output = output.connect(1, "launchpad-rs-out")?;
+        let output = output.connect(&out_port, "launchpad-rs-out")?;
 
         Ok(MidiLaunchpadMk2 {
             _midi_input: input,
