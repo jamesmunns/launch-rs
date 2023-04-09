@@ -1,9 +1,18 @@
 [package]
-name = "launch-rs"
-version = "0.1.0"
-authors = ["James Munns <james.munns@gmail.com>"]
+name = "launchpad"
+version = "1.0.0"
+authors = ["James Munns <james.munns@gmail.com>", "Cassaundra Smith <cass@cassaundra.io>"]
+description = "Rust libraries for the Novation Launchpad, using PortMidi bindings"
+license = "MIT"
+homepage = "https://github.com/jamesmunns/launch-rs"
+repository = "https://github.com/jamesmunns/launch-rs"
+documentation = "https://docs.rs/launchpad"
+edition = "2018"
 
 [dependencies]
-portmidi = "0.2.4"
-launchpad = "*"
-clap = "*"
+midir = "0.5.0"
+palette = "0.4"
+
+[features]
+default = ["mk2"]
+mk2 = []
